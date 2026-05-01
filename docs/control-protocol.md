@@ -1,10 +1,15 @@
 # CrawlBar Control Protocol
 
 CrawlBar treats each crawler as a local CLI with a small control contract.
+Today that contract lives in CrawlBar manifests and adapters. The cleaner
+long-term home is `crawlkit`, because the Go CLIs already share config,
+status, output, desktop-cache, pack, and git-share infrastructure there.
 
 ## Manifest
 
-A crawler can be built in or represented by a manifest JSON file under `~/.crawlbar/apps`.
+A crawler can be built in or represented by a manifest JSON file under
+`~/.crawlbar/apps`. Once `crawlkit` grows a control package, each crawler should
+also expose the same payload through `metadata --json`.
 
 ```json
 {
@@ -49,6 +54,15 @@ CrawlBar accepts varied JSON, then normalizes known fields into one status model
 
 Unknown fields are allowed. The app should not break when a crawler adds extra data.
 
+The preferred future shape is a `crawlkit`-owned status envelope with:
+
+- `app_id`, `schema_version`, `generated_at`, `state`, and `summary`.
+- normalized counters as `{id,label,value}` rows.
+- effective config/database/cache/log/share paths from `configkit`.
+- freshness from `syncstate`.
+- share/export state from `gitshare` and `pack`.
+- warnings/errors with no secret values.
+
 ## Actions
 
 Actions are manifest command arrays. CrawlBar does not shell-expand them.
@@ -57,6 +71,9 @@ Actions are manifest command arrays. CrawlBar does not shell-expand them.
 - `doctor` may inspect auth/config and should avoid writes unless the crawler already defines that behavior.
 - `refresh` may pull data into the local database.
 - `publish`, `update`, and exporter actions are optional and should return JSON when possible.
+- desktop-cache actions should use public names such as `desktopcache` or `tap`.
+  Existing `wiretap` command names can stay as backward-compatible aliases, but
+  new metadata should not advertise `wiretap`.
 
 ## Privacy
 
