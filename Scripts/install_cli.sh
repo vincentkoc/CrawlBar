@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="${PREFIX:-$HOME/.local/bin}"
 
 cd "$ROOT_DIR"
-swift build -c release --product crawlbar
+swift build -c release --product crawlbarctl
 mkdir -p "$PREFIX"
-install -m 0755 ".build/release/crawlbar" "$PREFIX/crawlbar"
+install -m 0755 ".build/release/crawlbarctl" "$PREFIX/crawlbar"
 echo "$PREFIX/crawlbar"

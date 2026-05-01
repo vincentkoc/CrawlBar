@@ -7,10 +7,10 @@ Keep changes small and prove the touched surface.
 ```sh
 swift build
 swift run crawlbar-selftest
-swift run crawlbar apps --json
+swift run crawlbarctl apps --json
 ```
 
-Use `swift run crawlbar status --app all --json` only when you expect local crawler CLIs to be installed. It should not require live databases to exist.
+Use `swift run crawlbarctl status --app all --json` only when you expect local crawler CLIs to be installed. It should not require live databases to exist.
 
 ## Manifest Changes
 

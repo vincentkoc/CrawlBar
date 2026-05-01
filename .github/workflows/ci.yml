@@ -17,6 +17,6 @@ jobs:
         run: swift run crawlbar-selftest
       - name: CLI smoke
         run: |
-          swift run crawlbar apps --json
-          swift run crawlbar metadata --json
-          swift run crawlbar config validate
+          swift run crawlbarctl apps --json
+          swift run crawlbarctl metadata --json
+          swift run crawlbarctl config validate

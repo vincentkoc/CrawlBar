@@ -10,13 +10,13 @@ HELPERS_DIR="$CONTENTS_DIR/Helpers"
 
 cd "$ROOT_DIR"
 swift build -c release --product CrawlBar
-swift build -c release --product crawlbar
+swift build -c release --product crawlbarctl
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$HELPERS_DIR"
 
 cp ".build/release/CrawlBar" "$MACOS_DIR/CrawlBar"
-cp ".build/release/crawlbar" "$HELPERS_DIR/crawlbar"
+cp ".build/release/crawlbarctl" "$HELPERS_DIR/crawlbar"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

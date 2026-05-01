@@ -9,7 +9,7 @@ let package = Package(
     products: [
         .library(name: "CrawlBarCore", targets: ["CrawlBarCore"]),
         .executable(name: "CrawlBar", targets: ["CrawlBar"]),
-        .executable(name: "crawlbar", targets: ["CrawlBarCLI"]),
+        .executable(name: "crawlbarctl", targets: ["CrawlBarCLI"]),
         .executable(name: "crawlbar-selftest", targets: ["CrawlBarSelfTest"]),
     ],
     targets: [

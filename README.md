@@ -20,7 +20,7 @@ Future crawler repos can drop a manifest JSON file into `~/.crawlbar/apps/*.json
 ```sh
 swift build
 swift run crawlbar-selftest
-swift run crawlbar apps --json
+swift run crawlbarctl apps --json
 ```
 
 ## CLI
@@ -35,6 +35,10 @@ crawlbar action desktop-cache-import --app discrawl [--json]
 crawlbar logs [--json]
 crawlbar config path|validate|init
 ```
+
+During development the SwiftPM product is `crawlbarctl` to avoid colliding with
+the `CrawlBar` app binary on case-insensitive macOS filesystems. The install
+script places it on PATH as `crawlbar`.
 
 ## Config
 
