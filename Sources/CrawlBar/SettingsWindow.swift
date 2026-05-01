@@ -15,19 +15,14 @@ final class CrawlBarSettingsWindowController {
 
         let model = CrawlBarSettingsModel()
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 980, height: 680),
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 580),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "CrawlBar Settings"
-        window.styleMask.insert(.fullSizeContentView)
-        window.titlebarAppearsTransparent = true
-        window.toolbarStyle = .unifiedCompact
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        window.isOpaque = false
+        window.title = "Settings"
+        window.toolbarStyle = .preference
         window.center()
-        window.contentMinSize = NSSize(width: 860, height: 560)
+        window.contentMinSize = NSSize(width: 720, height: 540)
         window.contentView = NSHostingView(rootView: CrawlBarSettingsView(model: model))
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate()
@@ -160,84 +155,104 @@ struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
 
     var body: some View {
-        ZStack {
-            CrawlBarVisualEffect(material: .underWindowBackground, blendingMode: .behindWindow)
-                .ignoresSafeArea()
-            HStack(spacing: 0) {
-                self.sidebar
-                    .frame(width: 292)
-                    .background(CrawlBarVisualEffect(material: .sidebar, blendingMode: .withinWindow))
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor).opacity(0.45))
-                    .frame(width: 0.5)
-                self.detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(CrawlBarVisualEffect(material: .contentBackground, blendingMode: .withinWindow))
-            }
+        TabView {
+            self.crawlersPane
+                .tabItem { Label("Crawlers", systemImage: "square.grid.2x2") }
+            self.generalPane
+                .tabItem { Label("General", systemImage: "gearshape") }
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .frame(width: 760, height: 580)
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("CrawlBar")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Button {
-                    self.model.refreshAll()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh crawler status")
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+    private var crawlersPane: some View {
+        HStack(alignment: .top, spacing: 16) {
+            self.sidebar
+            self.detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
 
-            CrawlBarSidebarSummary(
-                apps: self.model.apps,
-                installations: self.model.installations,
-                statuses: self.model.statuses)
-            .padding(.horizontal, 14)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Default Sync")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Picker("Default Sync", selection: self.$model.refreshFrequency) {
+    private var generalPane: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            CrawlBarPanel(
+                title: "Default Sync",
+                caption: "Used by crawlers that inherit the global schedule.")
+            {
+                Picker("Sync every", selection: self.$model.refreshFrequency) {
                     ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
                         Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
                     }
                 }
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.horizontal, 16)
-            .onChange(of: self.model.refreshFrequency) {
-                self.model.save()
-            }
-
-            List(selection: self.$model.selectedAppID) {
-                ForEach(self.model.apps) { app in
-                    CrawlBarSidebarRow(
-                        app: app,
-                        manifest: self.model.installations[app.id]?.manifest,
-                        status: self.model.statuses[app.id],
-                        binaryPath: self.model.installations[app.id]?.binaryPath)
-                    .tag(app.id)
+                .frame(width: 220)
+                .onChange(of: self.model.refreshFrequency) {
+                    self.model.save()
                 }
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+
+            CrawlBarPanel(title: "Maintenance") {
+                HStack(spacing: 8) {
+                    Button {
+                        self.model.refreshAll()
+                    } label: {
+                        Label("Refresh Status", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
+                    } label: {
+                        Label("Open Logs", systemImage: "folder")
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: 496, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(self.model.apps) { app in
+                        CrawlBarSidebarRow(
+                            app: app,
+                            manifest: self.model.installations[app.id]?.manifest,
+                            status: self.model.statuses[app.id],
+                            binaryPath: self.model.installations[app.id]?.binaryPath)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(
+                                    self.model.selectedAppID == app.id
+                                        ? Color(nsColor: .selectedContentBackgroundColor)
+                                        : Color.clear)
+                                .padding(.horizontal, 4))
+                        .contentShape(Rectangle())
+                        .onTapGesture { self.model.selectedAppID = app.id }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             if let error = self.model.lastError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .frame(width: 260)
+        .frame(maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -337,30 +352,35 @@ struct CrawlBarAppDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 self.header
                 self.statusSummary
+                Divider()
                 self.metrics
+                Divider()
                 self.syncSettings
+                Divider()
                 self.gitShareSettings
+                Divider()
                 self.paths
+                Divider()
                 self.privacy
             }
-            .padding(.top, 26)
-            .padding(.horizontal, 26)
-            .padding(.bottom, 28)
+            .frame(maxWidth: 430, alignment: .leading)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 2)
         }
-        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
-                .frame(width: 54, height: 54)
+                .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
                     Text(self.manifest?.displayName ?? self.app.id.rawValue)
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                     CrawlBarStatusPill(state: self.effectiveState)
                 }
                 Text(self.manifest?.description ?? self.app.id.rawValue)
@@ -388,11 +408,17 @@ struct CrawlBarAppDetailView: View {
 
     private var statusSummary: some View {
         CrawlBarPanel {
-            HStack(alignment: .top, spacing: 18) {
-                CrawlBarFact(label: "Status", value: self.status?.summary ?? self.statusFallback)
-                CrawlBarFact(label: "Last Sync", value: self.status?.lastSyncAt.map(CrawlBarDateText.relative) ?? "Never")
-                CrawlBarFact(label: "Database", value: self.status?.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown")
-                CrawlBarFact(label: "Binary", value: self.installation?.binaryPath == nil ? "Missing" : "Found")
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
+                GridRow {
+                    CrawlBarFact(label: "Status", value: self.status?.summary ?? self.statusFallback)
+                    CrawlBarFact(label: "Last Sync", value: self.status?.lastSyncAt.map(CrawlBarDateText.relative) ?? "Never")
+                }
+                GridRow {
+                    CrawlBarFact(
+                        label: "Database",
+                        value: self.status?.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown")
+                    CrawlBarFact(label: "Binary", value: self.installation?.binaryPath == nil ? "Missing" : "Found")
+                }
             }
         }
     }
@@ -554,10 +580,12 @@ struct CrawlBarAppDetailView: View {
 
 struct CrawlBarPanel<Content: View>: View {
     var title: String?
+    var caption: String?
     @ViewBuilder var content: Content
 
-    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String? = nil, caption: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.caption = caption
         self.content = content()
     }
 
@@ -565,86 +593,19 @@ struct CrawlBarPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             if let title {
                 Text(title)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
             }
-            self.content
-        }
-        .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.38), lineWidth: 0.5)
-        }
-    }
-}
-
-struct CrawlBarSidebarSummary: View {
-    let apps: [CrawlBarAppConfig]
-    let installations: [CrawlAppID: CrawlAppInstallation]
-    let statuses: [CrawlAppID: CrawlAppStatus]
-
-    var body: some View {
-        HStack(spacing: 12) {
-            self.summaryItem("Online", value: "\(self.onlineCount)", color: .green)
-            self.summaryItem("Needs Setup", value: "\(self.needsSetupCount)", color: .red)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
-        }
-    }
-
-    private var onlineCount: Int {
-        self.apps.filter { app in
-            guard app.enabled, self.installations[app.id]?.binaryPath != nil else { return false }
-            return self.statuses[app.id]?.state == .current
-        }.count
-    }
-
-    private var needsSetupCount: Int {
-        self.apps.filter { app in
-            !app.enabled || self.installations[app.id]?.binaryPath == nil || self.statuses[app.id]?.state == .needsAuth
-        }.count
-    }
-
-    private func summaryItem(_ label: String, value: String, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(value)
-                    .font(.system(size: 15, weight: .semibold))
-                    .monospacedDigit()
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            if let caption {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            VStack(alignment: .leading, spacing: 10) {
+                self.content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct CrawlBarVisualEffect: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = self.material
-        view.blendingMode = self.blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
-        view.material = self.material
-        view.blendingMode = self.blendingMode
-        view.state = .active
     }
 }
 
@@ -713,19 +674,17 @@ struct CrawlBarMetricTile: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(self.value)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(self.label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            Spacer(minLength: 8)
+            Text(self.value)
+                .font(.callout.weight(.semibold))
+                .monospacedDigit()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
