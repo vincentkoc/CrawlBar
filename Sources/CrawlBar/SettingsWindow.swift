@@ -747,15 +747,19 @@ struct CrawlBarAppDetailView: View {
 
     @ViewBuilder
     private var configuration: some View {
-        if let options = self.manifest?.configOptions, !options.isEmpty {
-            CrawlBarPanel(
-                title: "Configuration",
-                caption: "Saved locally in CrawlBar config. Secret values are hidden in the UI and redacted from CLI reads.")
-            {
-                ForEach(options) { option in
-                    CrawlBarConfigOptionField(
-                        option: option,
-                        value: self.configValueBinding(for: option))
+        if self.manifest?.availability == .comingSoon {
+            CrawlBarPanel(title: "Coming Soon") {
+                CrawlBarFact(label: "CLI", value: self.manifest?.binary.name ?? self.app.id.rawValue)
+                CrawlBarFact(label: "Config", value: self.manifest?.paths.defaultConfig ?? "Not declared")
+            }
+        } else if let manifest = self.manifest, !manifest.configOptions.isEmpty {
+            ForEach(self.configSections(for: manifest)) { section in
+                CrawlBarPanel(title: section.title, caption: section.caption) {
+                    ForEach(section.options) { option in
+                        CrawlBarConfigOptionField(
+                            option: option,
+                            value: self.configValueBinding(for: option))
+                    }
                 }
             }
         }
@@ -844,6 +848,80 @@ struct CrawlBarAppDetailView: View {
                 self.app.configValues[option.id] = $0.nilIfBlank
                 self.save()
             })
+    }
+
+    private func configSections(for manifest: CrawlAppManifest) -> [CrawlBarConfigSection] {
+        let optionsByID = Dictionary(uniqueKeysWithValues: manifest.configOptions.map { ($0.id, $0) })
+        let sections: [CrawlBarConfigSection]
+        switch manifest.id {
+        case BuiltInCrawlApps.gitcrawlID:
+            sections = [
+                .init(id: "github", title: "GitHub Access", optionIDs: ["github_token"]),
+                .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
+            ]
+        case BuiltInCrawlApps.slacrawlID:
+            sections = [
+                .init(id: "slack", title: "Slack Access", optionIDs: ["slack_token"]),
+                .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
+            ]
+        case BuiltInCrawlApps.discrawlID:
+            sections = [
+                .init(id: "discord", title: "Discord Access", optionIDs: ["discord_token"]),
+                .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
+            ]
+        case BuiltInCrawlApps.notcrawlID:
+            sections = [
+                .init(id: "notion", title: "Notion Access", optionIDs: ["notion_token"]),
+                .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
+            ]
+        default:
+            sections = [
+                .init(id: "config", title: "Configuration", optionIDs: manifest.configOptions.map(\.id)),
+            ]
+        }
+
+        let usedIDs = Set(sections.flatMap(\.optionIDs))
+        let resolved = sections.compactMap { section -> CrawlBarConfigSection? in
+            let options = section.optionIDs.compactMap { optionsByID[$0] }
+            guard !options.isEmpty else { return nil }
+            return section.resolved(options: options)
+        }
+        let extraOptions = manifest.configOptions.filter { !usedIDs.contains($0.id) }
+        if extraOptions.isEmpty {
+            return resolved
+        }
+        return resolved + [CrawlBarConfigSection(id: "advanced", title: "Advanced", optionIDs: [], options: extraOptions)]
+    }
+}
+
+private struct CrawlBarConfigSection: Identifiable {
+    var id: String
+    var title: String
+    var caption: String?
+    var optionIDs: [String]
+    var options: [CrawlAppManifest.ConfigOption]
+
+    init(
+        id: String,
+        title: String,
+        caption: String? = nil,
+        optionIDs: [String],
+        options: [CrawlAppManifest.ConfigOption] = [])
+    {
+        self.id = id
+        self.title = title
+        self.caption = caption
+        self.optionIDs = optionIDs
+        self.options = options
+    }
+
+    func resolved(options: [CrawlAppManifest.ConfigOption]) -> CrawlBarConfigSection {
+        CrawlBarConfigSection(
+            id: self.id,
+            title: self.title,
+            caption: self.caption,
+            optionIDs: self.optionIDs,
+            options: options)
     }
 }
 
