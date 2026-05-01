@@ -53,6 +53,8 @@ final class CrawlBarSettingsModel: ObservableObject {
     @Published var statuses: [CrawlAppID: CrawlAppStatus] = [:]
     @Published var installations: [CrawlAppID: CrawlAppInstallation] = [:]
     @Published var isRefreshing = false
+    @Published var isInstallingCLI = false
+    @Published var appActionMessage: String?
     @Published var runningActions: [CrawlAppID: String] = [:]
     @Published var actionMessages: [CrawlAppID: String] = [:]
     @Published var lastError: String?
@@ -217,6 +219,32 @@ final class CrawlBarSettingsModel: ObservableObject {
         NSWorkspace.shared.open(URL(fileURLWithPath: PathExpander.expandHome(path)).deletingLastPathComponent())
     }
 
+    func openConfigFile() {
+        NSWorkspace.shared.activateFileViewerSelecting([self.store.fileURL])
+    }
+
+    func openLogsFolder() {
+        NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
+    }
+
+    func installCLI() {
+        self.isInstallingCLI = true
+        self.appActionMessage = "Installing crawlbar CLI..."
+        Task.detached {
+            let message: String
+            do {
+                let path = try Self.installBundledCLI()
+                message = "Installed crawlbar CLI at \(path)"
+            } catch {
+                message = error.localizedDescription
+            }
+            await MainActor.run {
+                self.isInstallingCLI = false
+                self.appActionMessage = message
+            }
+        }
+    }
+
     nonisolated private static func status(
         for installation: CrawlAppInstallation,
         runner: CrawlCommandRunner,
@@ -262,20 +290,111 @@ final class CrawlBarSettingsModel: ObservableObject {
             action
         }
     }
+
+    nonisolated private static func installBundledCLI() throws -> String {
+        let fileManager = FileManager.default
+        let sourceCandidates = Self.cliSourceCandidates()
+        guard let source = sourceCandidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) else {
+            throw CrawlBarSettingsError.cliHelperMissing
+        }
+        let destinationDirectory = URL(fileURLWithPath: PathExpander.expandHome("~/.local/bin"), isDirectory: true)
+        let destination = destinationDirectory.appendingPathComponent("crawlbar")
+        try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.copyItem(at: source, to: destination)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
+        return destination.path
+    }
+
+    nonisolated private static func cliSourceCandidates() -> [URL] {
+        var candidates: [URL] = [
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/crawlbar"),
+        ]
+        if let executableDirectory = Bundle.main.executableURL?.deletingLastPathComponent() {
+            candidates.append(executableDirectory.appendingPathComponent("crawlbarctl"))
+            candidates.append(executableDirectory.deletingLastPathComponent().appendingPathComponent("debug/crawlbarctl"))
+            candidates.append(executableDirectory.deletingLastPathComponent().appendingPathComponent("release/crawlbarctl"))
+        }
+        return candidates
+    }
+}
+
+private enum CrawlBarSettingsError: LocalizedError {
+    case cliHelperMissing
+
+    var errorDescription: String? {
+        switch self {
+        case .cliHelperMissing:
+            "Could not find bundled crawlbar CLI helper"
+        }
+    }
+}
+
+private enum CrawlBarSettingsMode: String, CaseIterable, Identifiable {
+    case crawlers
+    case general
+
+    var id: String { self.rawValue }
+
+    var title: String {
+        switch self {
+        case .crawlers:
+            "Crawlers"
+        case .general:
+            "General"
+        }
+    }
+}
+
+private enum CrawlBarSettingsLayout {
+    static let windowWidth: CGFloat = 820
+    static let windowHeight: CGFloat = 580
+    static let contentHeight: CGFloat = 508
+    static let sidebarWidth: CGFloat = 246
+    static let detailWidth: CGFloat = 522
 }
 
 struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
+    @State private var selectedMode: CrawlBarSettingsMode = .crawlers
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            self.sidebar
-            self.detail
-                .frame(width: 522, height: 548, alignment: .topLeading)
+        VStack(spacing: 12) {
+            Picker("Settings", selection: self.$selectedMode) {
+                ForEach(CrawlBarSettingsMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 210)
+
+            switch self.selectedMode {
+            case .crawlers:
+                HStack(alignment: .top, spacing: 16) {
+                    self.sidebar
+                    self.detail
+                        .frame(
+                            width: CrawlBarSettingsLayout.detailWidth,
+                            height: CrawlBarSettingsLayout.contentHeight,
+                            alignment: .topLeading)
+                }
+            case .general:
+                CrawlBarGeneralSettingsView(model: self.model)
+                    .frame(
+                        width: CrawlBarSettingsLayout.sidebarWidth + 16 + CrawlBarSettingsLayout.detailWidth,
+                        height: CrawlBarSettingsLayout.contentHeight,
+                        alignment: .topLeading)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .frame(width: 820, height: 580, alignment: .leading)
+        .frame(
+            width: CrawlBarSettingsLayout.windowWidth,
+            height: CrawlBarSettingsLayout.windowHeight,
+            alignment: .top)
     }
 
     private var sidebar: some View {
@@ -357,7 +476,7 @@ struct CrawlBarSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(width: 246, height: 548)
+        .frame(width: CrawlBarSettingsLayout.sidebarWidth, height: CrawlBarSettingsLayout.contentHeight)
     }
 
     @ViewBuilder
@@ -403,6 +522,97 @@ struct CrawlBarSettingsView: View {
                 self.model.apps[index] = $0
                 self.model.save()
             })
+    }
+}
+
+private struct CrawlBarGeneralSettingsView: View {
+    @ObservedObject var model: CrawlBarSettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 42, height: 42)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CrawlBar")
+                        .font(.title3.weight(.semibold))
+                    Text("Menu bar control plane for local crawler apps")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    self.model.refreshAll()
+                } label: {
+                    Label("Refresh All", systemImage: "arrow.clockwise")
+                }
+                .disabled(self.model.isRefreshing)
+            }
+
+            CrawlBarPanel(title: "App") {
+                HStack(spacing: 8) {
+                    Button {
+                        self.model.installCLI()
+                    } label: {
+                        Label("Install CLI", systemImage: "terminal")
+                    }
+                    .disabled(self.model.isInstallingCLI)
+                    Button {
+                        self.model.openConfigFile()
+                    } label: {
+                        Label("Config", systemImage: "doc.text")
+                    }
+                    Button {
+                        self.model.openLogsFolder()
+                    } label: {
+                        Label("Logs", systemImage: "folder")
+                    }
+                }
+                .controlSize(.small)
+                CrawlBarFact(label: "CLI Target", value: "~/.local/bin/crawlbar")
+                CrawlBarFact(label: "Config", value: CrawlBarConfigStore().fileURL.path)
+                if let message = self.model.appActionMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            CrawlBarPanel(title: "Discovery") {
+                ForEach(self.manifestDirectories, id: \.self) { directory in
+                    CrawlBarFact(label: "Manifest Directory", value: directory)
+                }
+            }
+
+            CrawlBarPanel(title: "Inventory") {
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                    GridRow {
+                        CrawlBarFact(label: "Ready", value: "\(self.readyCount)")
+                        CrawlBarFact(label: "Missing CLI", value: "\(self.missingCount)")
+                        CrawlBarFact(label: "Coming Soon", value: "\(self.comingSoonCount)")
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var manifestDirectories: [String] {
+        (try? CrawlBarConfigStore().loadOrCreateDefault().manifestDirectories) ?? ["~/.crawlbar/apps"]
+    }
+
+    private var readyCount: Int {
+        self.model.installations.values.filter { $0.manifest.availability == .available && $0.binaryPath != nil }.count
+    }
+
+    private var missingCount: Int {
+        self.model.installations.values.filter { $0.manifest.availability == .available && $0.binaryPath == nil }.count
+    }
+
+    private var comingSoonCount: Int {
+        self.model.installations.values.filter { $0.manifest.availability == .comingSoon }.count
     }
 }
 
@@ -514,7 +724,10 @@ struct CrawlBarAppDetailView: View {
                 .padding(.horizontal, 2)
             }
         }
-        .frame(width: 522, height: 548, alignment: .topLeading)
+        .frame(
+            width: CrawlBarSettingsLayout.detailWidth,
+            height: CrawlBarSettingsLayout.contentHeight,
+            alignment: .topLeading)
     }
 
     private var header: some View {
