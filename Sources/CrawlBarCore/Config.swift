@@ -79,6 +79,38 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         case preferredUpdateAction = "preferred_update_action"
         case showInMenuBar = "show_in_menu_bar"
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(CrawlAppID.self, forKey: .id)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        self.binaryPath = try container.decodeIfPresent(String.self, forKey: .binaryPath)
+        self.configPath = try container.decodeIfPresent(String.self, forKey: .configPath)
+        self.refreshFrequency = try container.decodeIfPresent(RefreshFrequency.self, forKey: .refreshFrequency)
+        self.preferredRefreshAction = try container.decodeIfPresent(String.self, forKey: .preferredRefreshAction) ?? "refresh"
+        self.autoRefreshEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoRefreshEnabled) ?? false
+        self.shareEnabled = try container.decodeIfPresent(Bool.self, forKey: .shareEnabled) ?? false
+        self.shareAfterRefresh = try container.decodeIfPresent(Bool.self, forKey: .shareAfterRefresh) ?? false
+        self.preferredShareAction = try container.decodeIfPresent(String.self, forKey: .preferredShareAction) ?? "publish"
+        self.preferredUpdateAction = try container.decodeIfPresent(String.self, forKey: .preferredUpdateAction) ?? "update"
+        self.showInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.enabled, forKey: .enabled)
+        try container.encodeIfPresent(self.binaryPath, forKey: .binaryPath)
+        try container.encodeIfPresent(self.configPath, forKey: .configPath)
+        try container.encodeIfPresent(self.refreshFrequency, forKey: .refreshFrequency)
+        try container.encodeIfPresent(self.preferredRefreshAction, forKey: .preferredRefreshAction)
+        try container.encode(self.autoRefreshEnabled, forKey: .autoRefreshEnabled)
+        try container.encode(self.shareEnabled, forKey: .shareEnabled)
+        try container.encode(self.shareAfterRefresh, forKey: .shareAfterRefresh)
+        try container.encodeIfPresent(self.preferredShareAction, forKey: .preferredShareAction)
+        try container.encodeIfPresent(self.preferredUpdateAction, forKey: .preferredUpdateAction)
+        try container.encode(self.showInMenuBar, forKey: .showInMenuBar)
+    }
 }
 
 public struct CrawlBarConfig: Codable, Equatable, Sendable {
@@ -127,6 +159,22 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
         case refreshFrequency = "refresh_frequency"
         case manifestDirectories = "manifest_directories"
         case apps
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion
+        self.refreshFrequency = try container.decodeIfPresent(RefreshFrequency.self, forKey: .refreshFrequency) ?? .fifteenMinutes
+        self.manifestDirectories = try container.decodeIfPresent([String].self, forKey: .manifestDirectories) ?? ["~/.crawlbar/apps"]
+        self.apps = try container.decodeIfPresent([CrawlBarAppConfig].self, forKey: .apps) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.version, forKey: .version)
+        try container.encode(self.refreshFrequency, forKey: .refreshFrequency)
+        try container.encode(self.manifestDirectories, forKey: .manifestDirectories)
+        try container.encode(self.apps, forKey: .apps)
     }
 }
 
