@@ -1,0 +1,59 @@
+{
+  "binary": {
+    "name": "examplecrawl"
+  },
+  "branding": {
+    "accent_color": "#2F81F7",
+    "symbol_name": "tray"
+  },
+  "capabilities": [
+    "status",
+    "doctor",
+    "refresh",
+    "publish",
+    "update"
+  ],
+  "commands": {
+    "doctor": [
+      "doctor",
+      "--json"
+    ],
+    "metadata": [
+      "metadata",
+      "--json"
+    ],
+    "publish": [
+      "publish",
+      "--json"
+    ],
+    "refresh": [
+      "sync",
+      "--json"
+    ],
+    "status": [
+      "status",
+      "--json"
+    ],
+    "update": [
+      "update",
+      "--json"
+    ]
+  },
+  "description": "Example crawler metadata for CrawlBar",
+  "display_name": "Example Crawl",
+  "id": "examplecrawl",
+  "paths": {
+    "config_env": "EXAMPLECRAWL_CONFIG",
+    "default_cache": "~/.examplecrawl/cache",
+    "default_config": "~/.examplecrawl/config.toml",
+    "default_database": "~/.examplecrawl/examplecrawl.db",
+    "default_logs": "~/.examplecrawl/logs",
+    "default_share": "~/.examplecrawl/share"
+  },
+  "privacy": {
+    "contains_private_messages": false,
+    "exports_secrets": false,
+    "local_only_scopes": []
+  },
+  "schema_version": 1
+}
