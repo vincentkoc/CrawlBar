@@ -6,16 +6,17 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/CrawlBar.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
+HELPERS_DIR="$CONTENTS_DIR/Helpers"
 
 cd "$ROOT_DIR"
 swift build -c release --product CrawlBar
 swift build -c release --product crawlbar
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR"
+mkdir -p "$MACOS_DIR" "$HELPERS_DIR"
 
 cp ".build/release/CrawlBar" "$MACOS_DIR/CrawlBar"
-cp ".build/release/crawlbar" "$MACOS_DIR/crawlbar"
+cp ".build/release/crawlbar" "$HELPERS_DIR/crawlbar"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
