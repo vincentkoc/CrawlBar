@@ -30,6 +30,10 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
     public var configPath: String?
     public var refreshFrequency: RefreshFrequency?
     public var preferredRefreshAction: String?
+    public var shareEnabled: Bool
+    public var shareAfterRefresh: Bool
+    public var preferredShareAction: String?
+    public var preferredUpdateAction: String?
     public var showInMenuBar: Bool
 
     public init(
@@ -39,6 +43,10 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         configPath: String? = nil,
         refreshFrequency: RefreshFrequency? = nil,
         preferredRefreshAction: String? = "refresh",
+        shareEnabled: Bool = false,
+        shareAfterRefresh: Bool = false,
+        preferredShareAction: String? = "publish",
+        preferredUpdateAction: String? = "update",
         showInMenuBar: Bool = true)
     {
         self.id = id
@@ -47,6 +55,10 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         self.configPath = configPath
         self.refreshFrequency = refreshFrequency
         self.preferredRefreshAction = preferredRefreshAction
+        self.shareEnabled = shareEnabled
+        self.shareAfterRefresh = shareAfterRefresh
+        self.preferredShareAction = preferredShareAction
+        self.preferredUpdateAction = preferredUpdateAction
         self.showInMenuBar = showInMenuBar
     }
 
@@ -57,6 +69,10 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         case configPath = "config_path"
         case refreshFrequency = "refresh_frequency"
         case preferredRefreshAction = "preferred_refresh_action"
+        case shareEnabled = "share_enabled"
+        case shareAfterRefresh = "share_after_refresh"
+        case preferredShareAction = "preferred_share_action"
+        case preferredUpdateAction = "preferred_update_action"
         case showInMenuBar = "show_in_menu_bar"
     }
 }
