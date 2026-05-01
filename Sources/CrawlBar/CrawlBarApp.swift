@@ -34,28 +34,13 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
 
     private func reloadMenu() {
         let menu = NSMenu()
+        menu.autoenablesItems = false
         let title = self.model.isRefreshing ? "Refreshing..." : "Refresh All"
         menu.addItem(NSMenuItem(title: title, action: #selector(Self.refreshAll(_:)), keyEquivalent: "r", target: self))
         menu.addItem(.separator())
 
         for installation in self.model.visibleInstallations {
-            let config = self.model.appConfig(for: installation.id)
-            let status = self.model.statuses[installation.id]
-            let state = status?.state.rawValue ?? (installation.binaryPath == nil ? "missing" : "unknown")
-            let summary = status?.summary ?? installation.manifest.description
-            let appItem = NSMenuItem(title: "\(installation.manifest.displayName): \(state)", action: nil, keyEquivalent: "")
-            appItem.image = CrawlBarIconFactory.image(for: installation.id, manifest: installation.manifest, size: 18)
-            appItem.toolTip = summary
-            menu.addItem(appItem)
-
-            if installation.enabled, installation.binaryPath != nil {
-                menu.addItem(self.actionItem("  Sync", appID: installation.id, action: config?.preferredRefreshAction ?? "refresh"))
-                menu.addItem(self.actionItem("  Doctor", appID: installation.id, action: "doctor"))
-                if config?.shareEnabled == true {
-                    menu.addItem(self.actionItem("  Publish", appID: installation.id, action: config?.preferredShareAction ?? "publish"))
-                    menu.addItem(self.actionItem("  Pull Updates", appID: installation.id, action: config?.preferredUpdateAction ?? "update"))
-                }
-            }
+            menu.addItem(self.appMenuItem(for: installation))
         }
 
         menu.addItem(.separator())
@@ -65,11 +50,107 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         self.statusItem?.menu = menu
     }
 
+    private func appMenuItem(for installation: CrawlAppInstallation) -> NSMenuItem {
+        let config = self.model.appConfig(for: installation.id)
+        let status = self.model.statuses[installation.id]
+        let state = self.effectiveState(for: installation, status: status)
+        let item = NSMenuItem(title: "\(installation.manifest.displayName)  \(self.shortStateLabel(for: state))", action: nil, keyEquivalent: "")
+        item.image = CrawlBarIconFactory.image(for: installation.id, manifest: installation.manifest, size: 18)
+        item.toolTip = status?.summary ?? installation.manifest.description
+
+        let submenu = NSMenu(title: installation.manifest.displayName)
+        submenu.autoenablesItems = false
+        submenu.addItem(self.disabledItem(self.longStateLabel(for: state)))
+        submenu.addItem(self.disabledItem(self.menuSummary(status?.summary ?? installation.manifest.description)))
+        if let lastSyncAt = status?.lastSyncAt {
+            submenu.addItem(self.disabledItem("Last sync: \(CrawlBarDateText.relative(lastSyncAt))"))
+        }
+        submenu.addItem(.separator())
+
+        if installation.enabled, installation.binaryPath != nil {
+            submenu.addItem(self.actionItem("Sync Now", appID: installation.id, action: config?.preferredRefreshAction ?? "refresh"))
+            submenu.addItem(self.actionItem("Doctor", appID: installation.id, action: "doctor"))
+            if config?.shareEnabled == true {
+                submenu.addItem(.separator())
+                submenu.addItem(self.actionItem("Publish Snapshot", appID: installation.id, action: config?.preferredShareAction ?? "publish"))
+                submenu.addItem(self.actionItem("Pull Updates", appID: installation.id, action: config?.preferredUpdateAction ?? "update"))
+            }
+        } else {
+            submenu.addItem(self.disabledItem(installation.enabled ? "Missing command-line tool" : "Disabled in CrawlBar"))
+        }
+
+        submenu.addItem(.separator())
+        submenu.addItem(NSMenuItem(title: "Open Settings...", action: #selector(Self.showSettings(_:)), keyEquivalent: "", target: self))
+        item.submenu = submenu
+        return item
+    }
+
     private func actionItem(_ title: String, appID: CrawlAppID, action: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(Self.runAction(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = CrawlMenuCommand(appID: appID, action: action)
         return item
+    }
+
+    private func disabledItem(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    private func effectiveState(for installation: CrawlAppInstallation, status: CrawlAppStatus?) -> CrawlAppState {
+        if !installation.enabled { return .disabled }
+        if installation.binaryPath == nil { return .needsConfig }
+        return status?.state ?? .unknown
+    }
+
+    private func shortStateLabel(for state: CrawlAppState) -> String {
+        switch state {
+        case .current:
+            "Current"
+        case .stale:
+            "Stale"
+        case .syncing:
+            "Syncing"
+        case .needsConfig:
+            "Setup"
+        case .needsAuth:
+            "Auth"
+        case .error:
+            "Error"
+        case .disabled:
+            "Off"
+        case .unknown:
+            "Unknown"
+        }
+    }
+
+    private func longStateLabel(for state: CrawlAppState) -> String {
+        switch state {
+        case .current:
+            "Status: current"
+        case .stale:
+            "Status: stale"
+        case .syncing:
+            "Status: syncing"
+        case .needsConfig:
+            "Status: needs setup"
+        case .needsAuth:
+            "Status: needs auth"
+        case .error:
+            "Status: error"
+        case .disabled:
+            "Status: disabled"
+        case .unknown:
+            "Status: unknown"
+        }
+    }
+
+    private func menuSummary(_ summary: String) -> String {
+        if summary.count <= 58 {
+            return summary
+        }
+        return String(summary.prefix(55)) + "..."
     }
 
     private func scheduleRefreshTimer() {
