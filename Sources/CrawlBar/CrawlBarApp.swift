@@ -356,8 +356,13 @@ final class CrawlBarMenuModel {
             return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
         }
         do {
-            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 30)
+            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 5)
             return mapper.status(from: result, manifest: installation.manifest)
+        } catch CrawlCommandRunnerError.timedOut {
+            return CrawlAppStatus(
+                appID: installation.id,
+                state: .unknown,
+                summary: "Status check is slow; run Doctor for a full check")
         } catch {
             return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
         }

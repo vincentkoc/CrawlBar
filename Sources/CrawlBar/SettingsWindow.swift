@@ -38,6 +38,8 @@ final class CrawlBarSettingsModel: ObservableObject {
     @Published var statuses: [CrawlAppID: CrawlAppStatus] = [:]
     @Published var installations: [CrawlAppID: CrawlAppInstallation] = [:]
     @Published var isRefreshing = false
+    @Published var runningActions: [CrawlAppID: String] = [:]
+    @Published var actionMessages: [CrawlAppID: String] = [:]
     @Published var lastError: String?
 
     private var manifestDirectories: [String] = ["~/.crawlbar/apps"]
@@ -124,18 +126,27 @@ final class CrawlBarSettingsModel: ObservableObject {
 
     func runAction(_ action: String, appID: CrawlAppID) {
         guard let installation = self.installations[appID] else { return }
-        self.isRefreshing = true
+        self.runningActions[appID] = action
+        self.actionMessages[appID] = "Running \(Self.actionTitle(action))..."
         let runner = self.runner
         let mapper = self.mapper
         let logStore = self.logStore
         Task.detached {
-            if let result = try? runner.run(installation: installation, action: action, timeoutSeconds: 600) {
+            let message: String
+            do {
+                let result = try runner.run(installation: installation, action: action, timeoutSeconds: 600)
                 _ = try? logStore.save(result)
+                message = result.exitCode == 0
+                    ? "\(Self.actionTitle(action)) finished"
+                    : "\(Self.actionTitle(action)) failed with exit \(result.exitCode)"
+            } catch {
+                message = error.localizedDescription
             }
             let status = Self.status(for: installation, runner: runner, mapper: mapper)
             await MainActor.run {
                 self.statuses[appID] = status
-                self.isRefreshing = false
+                self.runningActions[appID] = nil
+                self.actionMessages[appID] = message
             }
         }
     }
@@ -153,10 +164,30 @@ final class CrawlBarSettingsModel: ObservableObject {
             return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
         }
         do {
-            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 30)
+            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 5)
             return mapper.status(from: result, manifest: installation.manifest)
+        } catch CrawlCommandRunnerError.timedOut {
+            return CrawlAppStatus(
+                appID: installation.id,
+                state: .unknown,
+                summary: "Status check is slow; run Doctor for a full check")
         } catch {
             return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
+        }
+    }
+
+    nonisolated private static func actionTitle(_ action: String) -> String {
+        switch action {
+        case "refresh":
+            "Sync"
+        case "doctor":
+            "Doctor"
+        case "publish":
+            "Publish"
+        case "update":
+            "Update"
+        default:
+            action
         }
     }
 }
@@ -261,6 +292,8 @@ struct CrawlBarSettingsView: View {
                 installation: self.model.installations[selectedID],
                 status: self.model.statuses[selectedID],
                 isRefreshing: self.model.isRefreshing,
+                runningAction: self.model.runningActions[selectedID],
+                actionMessage: self.model.actionMessages[selectedID],
                 moveUp: { self.model.moveUp(selectedID) },
                 moveDown: { self.model.moveDown(selectedID) },
                 refreshStatus: { self.model.refreshAll() },
@@ -337,6 +370,8 @@ struct CrawlBarAppDetailView: View {
     let installation: CrawlAppInstallation?
     let status: CrawlAppStatus?
     let isRefreshing: Bool
+    let runningAction: String?
+    let actionMessage: String?
     let moveUp: () -> Void
     let moveDown: () -> Void
     let refreshStatus: () -> Void
@@ -438,19 +473,15 @@ struct CrawlBarAppDetailView: View {
 
     private var syncSettings: some View {
         CrawlBarPanel(title: "Sync") {
-            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
-                GridRow {
-                    Toggle("Enabled", isOn: self.$app.enabled)
-                        .onChange(of: self.app.enabled) { self.save() }
-                    Toggle("Show in menu bar", isOn: self.$app.showInMenuBar)
-                        .onChange(of: self.app.showInMenuBar) { self.save() }
-                }
-                GridRow {
-                    Toggle("Automatic sync", isOn: self.$app.autoRefreshEnabled)
-                        .onChange(of: self.app.autoRefreshEnabled) { self.save() }
-                    Toggle("Use default schedule", isOn: self.usesGlobalRefreshBinding)
-                        .disabled(!self.app.autoRefreshEnabled)
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Enabled", isOn: self.$app.enabled)
+                    .onChange(of: self.app.enabled) { self.save() }
+                Toggle("Show in menu bar", isOn: self.$app.showInMenuBar)
+                    .onChange(of: self.app.showInMenuBar) { self.save() }
+                Toggle("Automatic sync", isOn: self.$app.autoRefreshEnabled)
+                    .onChange(of: self.app.autoRefreshEnabled) { self.save() }
+                Toggle("Use default schedule", isOn: self.usesGlobalRefreshBinding)
+                    .disabled(!self.app.autoRefreshEnabled)
             }
             Picker("Sync every", selection: self.refreshFrequencyBinding) {
                 ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
@@ -462,25 +493,38 @@ struct CrawlBarAppDetailView: View {
             Text("Global sync schedule: \(CrawlBarFrequencyLabel.text(for: self.globalRefreshFrequency))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack {
-                Button {
-                    self.runAction(self.app.preferredRefreshAction ?? "refresh")
-                } label: {
-                    Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+            HStack(spacing: 8) {
+                if self.commandAvailable(self.app.preferredRefreshAction ?? "refresh") {
+                    Button {
+                        self.runAction(self.app.preferredRefreshAction ?? "refresh")
+                    } label: {
+                        Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                    }
                 }
-                    .disabled(!self.commandAvailable(self.app.preferredRefreshAction ?? "refresh"))
-                Button {
-                    self.runAction("doctor")
-                } label: {
-                    Label("Doctor", systemImage: "stethoscope")
+                if self.commandAvailable("doctor") {
+                    Button {
+                        self.runAction("doctor")
+                    } label: {
+                        Label("Doctor", systemImage: "stethoscope")
+                    }
                 }
-                    .disabled(!self.commandAvailable("doctor"))
-                Button {
-                    self.runAction(self.app.preferredUpdateAction ?? "update")
-                } label: {
-                    Label("Update", systemImage: "square.and.arrow.down")
+                if self.commandAvailable(self.app.preferredUpdateAction ?? "update") {
+                    Button {
+                        self.runAction(self.app.preferredUpdateAction ?? "update")
+                    } label: {
+                        Label("Update", systemImage: "square.and.arrow.down")
+                    }
                 }
-                    .disabled(!self.commandAvailable(self.app.preferredUpdateAction ?? "update"))
+            }
+            .disabled(self.runningAction != nil)
+            if let runningAction {
+                Label("Running \(runningAction)...", systemImage: "hourglass")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let actionMessage {
+                Text(actionMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -492,12 +536,15 @@ struct CrawlBarAppDetailView: View {
             Toggle("Publish after refresh", isOn: self.$app.shareAfterRefresh)
                 .disabled(!self.app.shareEnabled)
                 .onChange(of: self.app.shareAfterRefresh) { self.save() }
-            HStack {
-                Button("Publish") { self.runAction(self.app.preferredShareAction ?? "publish") }
-                    .disabled(!self.commandAvailable(self.app.preferredShareAction ?? "publish"))
-                Button("Pull Updates") { self.runAction(self.app.preferredUpdateAction ?? "update") }
-                    .disabled(!self.commandAvailable(self.app.preferredUpdateAction ?? "update"))
+            HStack(spacing: 8) {
+                if self.commandAvailable(self.app.preferredShareAction ?? "publish") {
+                    Button("Publish") { self.runAction(self.app.preferredShareAction ?? "publish") }
+                }
+                if self.commandAvailable(self.app.preferredUpdateAction ?? "update") {
+                    Button("Pull Updates") { self.runAction(self.app.preferredUpdateAction ?? "update") }
+                }
             }
+            .disabled(!self.app.shareEnabled || self.runningAction != nil)
             Divider()
             CrawlBarFact(label: "Share Repo", value: self.status?.share?.repoPath ?? self.manifest?.paths.defaultShare ?? "Not configured")
             CrawlBarFact(label: "Remote", value: self.status?.share?.remote ?? "Unknown")
