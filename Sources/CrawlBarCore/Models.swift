@@ -114,6 +114,20 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         }
     }
 
+    public enum InstallMethod: String, Codable, Equatable, Sendable {
+        case homebrew
+    }
+
+    public struct Install: Codable, Equatable, Sendable {
+        public var method: InstallMethod
+        public var package: String
+
+        public init(method: InstallMethod, package: String) {
+            self.method = method
+            self.package = package
+        }
+    }
+
     public enum ConfigOptionKind: String, Codable, Equatable, Sendable {
         case string
         case secret
@@ -191,6 +205,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var capabilities: [CrawlAppCapability]
     public var privacy: Privacy
     public var configOptions: [ConfigOption]
+    public var install: Install?
 
     public init(
         schemaVersion: Int = 1,
@@ -203,7 +218,8 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         commands: [String: [String]],
         capabilities: [CrawlAppCapability],
         privacy: Privacy = Privacy(),
-        configOptions: [ConfigOption] = [])
+        configOptions: [ConfigOption] = [],
+        install: Install? = nil)
     {
         self.schemaVersion = schemaVersion
         self.id = id
@@ -216,6 +232,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.capabilities = capabilities
         self.privacy = privacy
         self.configOptions = configOptions
+        self.install = install
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -230,6 +247,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case capabilities
         case privacy
         case configOptions = "config_options"
+        case install
     }
 
     public init(from decoder: Decoder) throws {
@@ -245,6 +263,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.capabilities = try container.decode([CrawlAppCapability].self, forKey: .capabilities)
         self.privacy = try container.decodeIfPresent(Privacy.self, forKey: .privacy) ?? Privacy()
         self.configOptions = try container.decodeIfPresent([ConfigOption].self, forKey: .configOptions) ?? []
+        self.install = try container.decodeIfPresent(Install.self, forKey: .install)
     }
 }
 

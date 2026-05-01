@@ -74,6 +74,7 @@ enum CrawlBarSelfTest {
         let manifests = CrawlManifestCatalog().manifests(config: config)
         try Self.expect(manifests.contains { $0.id == manifest.id }, "external manifests load from disk")
         try Self.expect(BuiltInCrawlApps.gitcrawl.configOptions.contains { $0.id == "embedding_model" }, "built-in config options exist")
+        try Self.expect(BuiltInCrawlApps.slacrawl.install?.package == "vincentkoc/tap/slacrawl", "built-in install metadata exists")
     }
 
     private static func testStatusMapperNormalizesCounts() throws {

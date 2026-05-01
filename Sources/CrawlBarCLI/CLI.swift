@@ -22,6 +22,7 @@ enum CrawlBarCLI {
         let registry = CrawlAppRegistry()
         let runner = CrawlCommandRunner()
         let mapper = CrawlStatusMapper()
+        let installer = CrawlInstaller()
 
         switch command {
         case "apps":
@@ -34,6 +35,8 @@ enum CrawlBarCLI {
             try Self.printStatus(registry: registry, runner: runner, mapper: mapper, options: options)
         case "doctor", "refresh":
             try Self.runAction(command, registry: registry, runner: runner, json: options.json, appID: options.requiredAppID())
+        case "install":
+            try Self.install(registry: registry, installer: installer, json: options.json, appID: options.requiredAppID())
         case "action":
             guard let action = options.positionals.first else {
                 throw CLIError.usage("action requires an action id")
@@ -149,6 +152,25 @@ enum CrawlBarCLI {
         }
     }
 
+    private static func install(
+        registry: CrawlAppRegistry,
+        installer: CrawlInstaller,
+        json: Bool,
+        appID: CrawlAppID)
+        throws
+    {
+        guard let installation = try registry.installation(for: appID) else {
+            throw CLIError.usage("unknown app: \(appID.rawValue)")
+        }
+        let result = try installer.install(installation)
+        _ = try? CrawlActionLogStore().save(result)
+        if json {
+            try CLIOutput.writeJSON(result)
+            return
+        }
+        print(result.stdout.nilIfBlank ?? result.stderr.nilIfBlank ?? "installed \(installation.manifest.binary.name)")
+    }
+
     private static func runConfig(_ options: CLIOptions, registry: CrawlAppRegistry) throws {
         let store = CrawlBarConfigStore()
         switch options.positionals.first {
@@ -247,6 +269,7 @@ enum CrawlBarCLI {
           logs [--json]
           metadata [--app <id>] [--json]
           status [--app <id|all>] [--json]
+          install --app <id> [--json]
           doctor --app <id> [--json]
           refresh --app <id> [--json]
           action <action-id> --app <id> [--json]

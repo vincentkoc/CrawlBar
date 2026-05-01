@@ -48,6 +48,7 @@ final class CrawlBarSettingsModel: ObservableObject {
     private let registry = CrawlAppRegistry()
     private let runner = CrawlCommandRunner()
     private let mapper = CrawlStatusMapper()
+    private let installer = CrawlInstaller()
     private let logStore = CrawlActionLogStore()
 
     init() {
@@ -146,6 +147,31 @@ final class CrawlBarSettingsModel: ObservableObject {
             let status = Self.status(for: installation, runner: runner, mapper: mapper)
             await MainActor.run {
                 self.statuses[appID] = status
+                self.runningActions[appID] = nil
+                self.actionMessages[appID] = message
+            }
+        }
+    }
+
+    func installApp(_ appID: CrawlAppID) {
+        guard let installation = self.installations[appID] else { return }
+        self.runningActions[appID] = "install"
+        self.actionMessages[appID] = "Installing \(installation.manifest.binary.name)..."
+        let installer = self.installer
+        let logStore = self.logStore
+        let registry = self.registry
+        Task.detached {
+            let message: String
+            do {
+                let result = try installer.install(installation)
+                _ = try? logStore.save(result)
+                message = "\(installation.manifest.binary.name) installed"
+            } catch {
+                message = error.localizedDescription
+            }
+            let installations = (try? registry.installations(includeDisabled: true)) ?? []
+            await MainActor.run {
+                self.installations = Dictionary(uniqueKeysWithValues: installations.map { ($0.id, $0) })
                 self.runningActions[appID] = nil
                 self.actionMessages[appID] = message
             }
@@ -309,6 +335,7 @@ struct CrawlBarSettingsView: View {
                 moveDown: { self.model.moveDown(selectedID) },
                 refreshStatus: { self.model.refreshAll() },
                 runAction: { action in self.model.runAction(action, appID: selectedID) },
+                installApp: { self.model.installApp(selectedID) },
                 save: { self.model.save() })
         } else {
             VStack(spacing: 10) {
@@ -410,6 +437,7 @@ struct CrawlBarAppDetailView: View {
     let moveDown: () -> Void
     let refreshStatus: () -> Void
     let runAction: (String) -> Void
+    let installApp: () -> Void
     let save: () -> Void
 
     @State private var selectedTab: CrawlBarDetailTab = .overview
@@ -574,6 +602,13 @@ struct CrawlBarAppDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
+                if self.installation?.binaryPath == nil, self.manifest?.install != nil {
+                    Button {
+                        self.installApp()
+                    } label: {
+                        Label("Install", systemImage: "square.and.arrow.down")
+                    }
+                }
                 if self.commandAvailable(self.app.preferredRefreshAction ?? "refresh") {
                     Button {
                         self.runAction(self.app.preferredRefreshAction ?? "refresh")
