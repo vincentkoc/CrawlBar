@@ -248,12 +248,24 @@ final class CrawlBarMenuModel {
         let mapper = self.mapper
         Task.detached {
             let installations = (try? registry.installations(includeDisabled: true)) ?? []
-            let statuses = installations.map { installation -> CrawlAppStatus in
-                Self.status(for: installation, runner: runner, mapper: mapper)
-            }
             await MainActor.run {
                 self.installations = installations
-                self.statuses = Dictionary(uniqueKeysWithValues: statuses.map { ($0.appID, $0) })
+                onComplete()
+            }
+            await withTaskGroup(of: CrawlAppStatus.self) { group in
+                for installation in installations {
+                    group.addTask {
+                        Self.status(for: installation, runner: runner, mapper: mapper)
+                    }
+                }
+                for await status in group {
+                    await MainActor.run {
+                        self.statuses[status.appID] = status
+                        onComplete()
+                    }
+                }
+            }
+            await MainActor.run {
                 self.isRefreshing = false
                 onComplete()
             }

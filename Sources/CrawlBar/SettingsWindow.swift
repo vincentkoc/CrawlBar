@@ -15,14 +15,14 @@ final class CrawlBarSettingsWindowController {
 
         let model = CrawlBarSettingsModel()
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 580),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 520),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "Settings"
-        window.toolbarStyle = .preference
+        window.title = "CrawlBar"
+        window.toolbarStyle = .unified
         window.center()
-        window.contentMinSize = NSSize(width: 720, height: 540)
+        window.contentMinSize = NSSize(width: 660, height: 480)
         window.contentView = NSHostingView(rootView: CrawlBarSettingsView(model: model))
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate()
@@ -101,12 +101,22 @@ final class CrawlBarSettingsModel: ObservableObject {
         let mapper = self.mapper
         Task.detached {
             let installations = (try? registry.installations(includeDisabled: true)) ?? []
-            let statuses = installations.map { installation in
-                Self.status(for: installation, runner: runner, mapper: mapper)
-            }
             await MainActor.run {
                 self.installations = Dictionary(uniqueKeysWithValues: installations.map { ($0.id, $0) })
-                self.statuses = Dictionary(uniqueKeysWithValues: statuses.map { ($0.appID, $0) })
+            }
+            await withTaskGroup(of: CrawlAppStatus.self) { group in
+                for installation in installations {
+                    group.addTask {
+                        Self.status(for: installation, runner: runner, mapper: mapper)
+                    }
+                }
+                for await status in group {
+                    await MainActor.run {
+                        self.statuses[status.appID] = status
+                    }
+                }
+            }
+            await MainActor.run {
                 self.isRefreshing = false
             }
         }
@@ -155,61 +165,15 @@ struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
 
     var body: some View {
-        TabView {
-            self.crawlersPane
-                .tabItem { Label("Crawlers", systemImage: "square.grid.2x2") }
-            self.generalPane
-                .tabItem { Label("General", systemImage: "gearshape") }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .frame(width: 760, height: 580)
-    }
-
-    private var crawlersPane: some View {
         HStack(alignment: .top, spacing: 16) {
             self.sidebar
             self.detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(width: 700, height: 520)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    }
-
-    private var generalPane: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            CrawlBarPanel(
-                title: "Default Sync",
-                caption: "Used by crawlers that inherit the global schedule.")
-            {
-                Picker("Sync every", selection: self.$model.refreshFrequency) {
-                    ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
-                        Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
-                    }
-                }
-                .frame(width: 220)
-                .onChange(of: self.model.refreshFrequency) {
-                    self.model.save()
-                }
-            }
-
-            CrawlBarPanel(title: "Maintenance") {
-                HStack(spacing: 8) {
-                    Button {
-                        self.model.refreshAll()
-                    } label: {
-                        Label("Refresh Status", systemImage: "arrow.clockwise")
-                    }
-                    Button {
-                        NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
-                    } label: {
-                        Label("Open Logs", systemImage: "folder")
-                    }
-                }
-            }
-
-            Spacer()
-        }
-        .frame(maxWidth: 496, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var sidebar: some View {
@@ -244,6 +208,37 @@ struct CrawlBarSettingsView: View {
                     .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Default Sync")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Picker("Default Sync", selection: self.$model.refreshFrequency) {
+                    ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
+                        Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .onChange(of: self.model.refreshFrequency) {
+                    self.model.save()
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    self.model.refreshAll()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                Button {
+                    NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
+                } label: {
+                    Label("Logs", systemImage: "folder")
+                }
+            }
+            .controlSize(.small)
+
             if let error = self.model.lastError {
                 Text(error)
                     .font(.caption)
@@ -251,7 +246,7 @@ struct CrawlBarSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(width: 260)
+        .frame(width: 236)
         .frame(maxHeight: .infinity)
     }
 
@@ -388,21 +383,24 @@ struct CrawlBarAppDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            ControlGroup {
-                Button(action: self.moveUp) {
-                    Image(systemName: "arrow.up")
-                }
-                .help("Move up")
-                Button(action: self.moveDown) {
-                    Image(systemName: "arrow.down")
-                }
-                .help("Move down")
+            HStack(spacing: 6) {
                 Button(action: self.refreshStatus) {
                     Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
                 }
+                .buttonStyle(.borderless)
                 .help("Refresh status")
+                Button(action: self.moveUp) {
+                    Image(systemName: "chevron.up")
+                }
+                .buttonStyle(.borderless)
+                .help("Move up")
+                Button(action: self.moveDown) {
+                    Image(systemName: "chevron.down")
+                }
+                .buttonStyle(.borderless)
+                .help("Move down")
             }
-            .controlGroupStyle(.compactMenu)
+            .controlSize(.small)
         }
     }
 
