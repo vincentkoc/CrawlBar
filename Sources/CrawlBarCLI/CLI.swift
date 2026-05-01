@@ -33,6 +33,10 @@ enum CrawlBarCLI {
             try Self.printMetadata(registry: registry, appID: options.appID, json: options.json)
         case "status":
             try Self.printStatus(registry: registry, runner: runner, mapper: mapper, options: options)
+        case "backup":
+            try Self.backup(registry: registry, runner: runner, mapper: mapper, json: options.json, appID: options.requiredAppID())
+        case "folder":
+            try Self.printFolder(registry: registry, runner: runner, mapper: mapper, json: options.json, appID: options.requiredAppID())
         case "doctor", "refresh":
             try Self.runAction(command, registry: registry, runner: runner, json: options.json, appID: options.requiredAppID())
         case "install":
@@ -171,6 +175,66 @@ enum CrawlBarCLI {
         print(result.stdout.nilIfBlank ?? result.stderr.nilIfBlank ?? "installed \(installation.manifest.binary.name)")
     }
 
+    private static func backup(
+        registry: CrawlAppRegistry,
+        runner: CrawlCommandRunner,
+        mapper: CrawlStatusMapper,
+        json: Bool,
+        appID: CrawlAppID)
+        throws
+    {
+        let status = try Self.status(for: appID, registry: registry, runner: runner, mapper: mapper)
+        let backup = try CrawlDatabaseBackupStore.backup(status: status)
+        if json {
+            try CLIOutput.writeJSON(backup)
+            return
+        }
+        print(backup.directory)
+    }
+
+    private static func printFolder(
+        registry: CrawlAppRegistry,
+        runner: CrawlCommandRunner,
+        mapper: CrawlStatusMapper,
+        json: Bool,
+        appID: CrawlAppID)
+        throws
+    {
+        let status = try Self.status(for: appID, registry: registry, runner: runner, mapper: mapper)
+        guard let path = status.databases.first(where: { $0.isPrimary })?.path ?? status.databasePath else {
+            throw CLIError.usage("no database folder for \(appID.rawValue)")
+        }
+        let folder = URL(fileURLWithPath: PathExpander.expandHome(path)).deletingLastPathComponent().path
+        if json {
+            try CLIOutput.writeJSON(["app_id": appID.rawValue, "folder": folder])
+            return
+        }
+        print(folder)
+    }
+
+    private static func status(
+        for appID: CrawlAppID,
+        registry: CrawlAppRegistry,
+        runner: CrawlCommandRunner,
+        mapper: CrawlStatusMapper)
+        throws -> CrawlAppStatus
+    {
+        guard let installation = try registry.installation(for: appID) else {
+            throw CLIError.usage("unknown app: \(appID.rawValue)")
+        }
+        guard installation.enabled else {
+            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
+        }
+        guard installation.binaryPath != nil else {
+            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
+        }
+        if let status = GitcrawlStatusSnapshot.status(for: installation) {
+            return status
+        }
+        let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 30)
+        return mapper.status(from: result, manifest: installation.manifest)
+    }
+
     private static func runConfig(_ options: CLIOptions, registry: CrawlAppRegistry) throws {
         let store = CrawlBarConfigStore()
         switch options.positionals.first {
@@ -266,6 +330,8 @@ enum CrawlBarCLI {
         print("""
         crawlbar commands:
           apps [--json]
+          backup --app <id> [--json]
+          folder --app <id> [--json]
           logs [--json]
           metadata [--app <id>] [--json]
           status [--app <id|all>] [--json]

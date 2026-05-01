@@ -9,6 +9,7 @@ enum CrawlBarSelfTest {
         try Self.testConfigStoreRoundTrips()
         try Self.testExternalManifestCatalog()
         try Self.testStatusMapperNormalizesCounts()
+        try Self.testDatabaseBackupCopiesFiles()
         try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
     }
@@ -95,6 +96,32 @@ enum CrawlBarSelfTest {
         try Self.expect(status.databasePath == "/tmp/discrawl.db", "database path maps")
         try Self.expect(status.databases.first?.label == "Discord archive", "database inventory maps")
         try Self.expect(status.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)) == true, "database inventory carries counts")
+    }
+
+    private static func testDatabaseBackupCopiesFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-backup-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let databaseURL = directory.appendingPathComponent("sample.db")
+        try Data("sqlite".utf8).write(to: databaseURL)
+        let status = CrawlAppStatus(
+            appID: BuiltInCrawlApps.notcrawlID,
+            state: .current,
+            summary: "ok",
+            databases: [
+                CrawlDatabaseResource(
+                    id: databaseURL.path,
+                    label: "Sample",
+                    kind: .sqlite,
+                    path: databaseURL.path,
+                    isPrimary: true),
+            ])
+
+        let backup = try CrawlDatabaseBackupStore.backup(status: status, root: directory.appendingPathComponent("backups", isDirectory: true))
+        try Self.expect(backup.files.count == 1, "backup copies one file")
+        try Self.expect(FileManager.default.fileExists(atPath: backup.files[0]), "backup file exists")
     }
 
     private static func testRedactorScrubsSecrets() throws {

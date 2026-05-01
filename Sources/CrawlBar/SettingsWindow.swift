@@ -178,6 +178,32 @@ final class CrawlBarSettingsModel: ObservableObject {
         }
     }
 
+    func backupDatabases(_ appID: CrawlAppID) {
+        guard let status = self.statuses[appID] else { return }
+        self.runningActions[appID] = "backup"
+        self.actionMessages[appID] = "Backing up databases..."
+        Task.detached {
+            let message: String
+            do {
+                let backup = try CrawlDatabaseBackupStore.backup(status: status)
+                message = "Backed up \(backup.files.count) database file(s)"
+            } catch {
+                message = error.localizedDescription
+            }
+            await MainActor.run {
+                self.runningActions[appID] = nil
+                self.actionMessages[appID] = message
+            }
+        }
+    }
+
+    func openDataFolder(_ appID: CrawlAppID) {
+        guard let status = self.statuses[appID],
+              let path = status.databases.first(where: { $0.isPrimary })?.path ?? status.databasePath
+        else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: PathExpander.expandHome(path)).deletingLastPathComponent())
+    }
+
     nonisolated private static func status(
         for installation: CrawlAppInstallation,
         runner: CrawlCommandRunner,
@@ -336,6 +362,8 @@ struct CrawlBarSettingsView: View {
                 refreshStatus: { self.model.refreshAll() },
                 runAction: { action in self.model.runAction(action, appID: selectedID) },
                 installApp: { self.model.installApp(selectedID) },
+                backupDatabases: { self.model.backupDatabases(selectedID) },
+                openDataFolder: { self.model.openDataFolder(selectedID) },
                 save: { self.model.save() })
         } else {
             VStack(spacing: 10) {
@@ -438,6 +466,8 @@ struct CrawlBarAppDetailView: View {
     let refreshStatus: () -> Void
     let runAction: (String) -> Void
     let installApp: () -> Void
+    let backupDatabases: () -> Void
+    let openDataFolder: () -> Void
     let save: () -> Void
 
     @State private var selectedTab: CrawlBarDetailTab = .overview
@@ -546,6 +576,21 @@ struct CrawlBarAppDetailView: View {
                     Text("Databases")
                         .font(.headline)
                     Spacer()
+                    Button {
+                        self.openDataFolder()
+                    } label: {
+                        Image(systemName: "folder")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Open data folder")
+                    Button {
+                        self.backupDatabases()
+                    } label: {
+                        Image(systemName: "archivebox")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(self.runningAction != nil)
+                    .help("Back up database files")
                     Text("\(databases.count)")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
