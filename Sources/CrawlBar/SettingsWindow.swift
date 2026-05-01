@@ -385,18 +385,21 @@ struct CrawlBarAppDetailView: View {
                 .onChange(of: self.app.enabled) { self.save() }
             Toggle("Show in menu bar", isOn: self.$app.showInMenuBar)
                 .onChange(of: self.app.showInMenuBar) { self.save() }
-            Toggle("Use global refresh schedule", isOn: self.usesGlobalRefreshBinding)
-            Picker("Refresh every", selection: self.refreshFrequencyBinding) {
+            Toggle("Automatic sync", isOn: self.$app.autoRefreshEnabled)
+                .onChange(of: self.app.autoRefreshEnabled) { self.save() }
+            Toggle("Use global sync schedule", isOn: self.usesGlobalRefreshBinding)
+                .disabled(!self.app.autoRefreshEnabled)
+            Picker("Sync every", selection: self.refreshFrequencyBinding) {
                 ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
                     Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
                 }
             }
-            .disabled(self.app.refreshFrequency == nil)
-            Text("Global schedule: \(CrawlBarFrequencyLabel.text(for: self.globalRefreshFrequency))")
+            .disabled(!self.app.autoRefreshEnabled || self.app.refreshFrequency == nil)
+            Text("Global sync schedule: \(CrawlBarFrequencyLabel.text(for: self.globalRefreshFrequency))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Refresh Now") { self.runAction(self.app.preferredRefreshAction ?? "refresh") }
+                Button("Sync Now") { self.runAction(self.app.preferredRefreshAction ?? "refresh") }
                     .disabled(!self.commandAvailable(self.app.preferredRefreshAction ?? "refresh"))
                 Button("Doctor") { self.runAction("doctor") }
                     .disabled(!self.commandAvailable("doctor"))
