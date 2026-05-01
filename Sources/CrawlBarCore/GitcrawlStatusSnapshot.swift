@@ -35,7 +35,7 @@ public enum GitcrawlStatusSnapshot {
                 staleAfterSeconds: 86_400)
         }
 
-        return CrawlAppStatus(
+        let status = CrawlAppStatus(
             appID: installation.id,
             state: state,
             summary: Self.summary(counts: counts),
@@ -44,6 +44,7 @@ public enum GitcrawlStatusSnapshot {
             lastSyncAt: latestUpdatedAt,
             counts: counts,
             freshness: freshness)
+        return CrawlDatabaseInventory.enrich(status, manifest: installation.manifest)
     }
 
     private static func summary(counts: [CrawlCount]) -> String {

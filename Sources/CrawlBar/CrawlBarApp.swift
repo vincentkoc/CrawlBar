@@ -65,6 +65,10 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         if let lastSyncAt = status?.lastSyncAt {
             submenu.addItem(self.disabledItem("Last sync: \(CrawlBarDateText.relative(lastSyncAt))"))
         }
+        if let databaseCount = status?.databases.count, databaseCount > 0 {
+            let noun = databaseCount == 1 ? "database" : "databases"
+            submenu.addItem(self.disabledItem("Databases: \(databaseCount) \(noun)"))
+        }
         submenu.addItem(.separator())
 
         if installation.enabled, installation.binaryPath != nil {

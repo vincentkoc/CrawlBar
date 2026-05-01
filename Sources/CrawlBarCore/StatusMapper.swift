@@ -21,18 +21,20 @@ public struct CrawlStatusMapper: Sendable {
                 warnings: ["Status command did not return parseable JSON"])
         }
 
+        let status: CrawlAppStatus
         switch manifest.id {
         case BuiltInCrawlApps.gitcrawlID:
-            return self.gitcrawlStatus(object, result: result)
+            status = self.gitcrawlStatus(object, result: result)
         case BuiltInCrawlApps.slacrawlID:
-            return self.slacrawlStatus(object, result: result)
+            status = self.slacrawlStatus(object, result: result)
         case BuiltInCrawlApps.discrawlID:
-            return self.discrawlStatus(object, result: result)
+            status = self.discrawlStatus(object, result: result)
         case BuiltInCrawlApps.notcrawlID:
-            return self.notcrawlStatus(object, result: result)
+            status = self.notcrawlStatus(object, result: result)
         default:
-            return self.genericStatus(object, result: result)
+            status = self.genericStatus(object, result: result)
         }
+        return CrawlDatabaseInventory.enrich(status, manifest: manifest)
     }
 
     private func gitcrawlStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {

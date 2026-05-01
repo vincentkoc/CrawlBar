@@ -87,6 +87,8 @@ enum CrawlBarSelfTest {
         let status = CrawlStatusMapper().status(from: result, manifest: BuiltInCrawlApps.discrawl)
         try Self.expect(status.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)), "discrawl messages map")
         try Self.expect(status.databasePath == "/tmp/discrawl.db", "database path maps")
+        try Self.expect(status.databases.first?.label == "Discord archive", "database inventory maps")
+        try Self.expect(status.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)) == true, "database inventory carries counts")
     }
 
     private static func testRedactorScrubsSecrets() throws {

@@ -242,6 +242,58 @@ public struct CrawlShareStatus: Codable, Equatable, Sendable {
     }
 }
 
+public enum CrawlDatabaseKind: String, Codable, Equatable, Sendable {
+    case sqlite
+    case cache
+    case logical
+}
+
+public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var label: String
+    public var kind: CrawlDatabaseKind
+    public var role: String?
+    public var path: String?
+    public var isPrimary: Bool
+    public var bytes: Int?
+    public var modifiedAt: Date?
+    public var counts: [CrawlCount]
+
+    public init(
+        id: String,
+        label: String,
+        kind: CrawlDatabaseKind,
+        role: String? = nil,
+        path: String? = nil,
+        isPrimary: Bool = false,
+        bytes: Int? = nil,
+        modifiedAt: Date? = nil,
+        counts: [CrawlCount] = [])
+    {
+        self.id = id
+        self.label = label
+        self.kind = kind
+        self.role = role
+        self.path = path
+        self.isPrimary = isPrimary
+        self.bytes = bytes
+        self.modifiedAt = modifiedAt
+        self.counts = counts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case kind
+        case role
+        case path
+        case isPrimary = "is_primary"
+        case bytes
+        case modifiedAt = "modified_at"
+        case counts
+    }
+}
+
 public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
     public var schemaVersion: Int
     public var appID: CrawlAppID
@@ -256,6 +308,7 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
     public var lastImportAt: Date?
     public var lastExportAt: Date?
     public var counts: [CrawlCount]
+    public var databases: [CrawlDatabaseResource]
     public var freshness: CrawlFreshness?
     public var share: CrawlShareStatus?
     public var warnings: [String]
@@ -279,6 +332,7 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         lastImportAt: Date? = nil,
         lastExportAt: Date? = nil,
         counts: [CrawlCount] = [],
+        databases: [CrawlDatabaseResource] = [],
         freshness: CrawlFreshness? = nil,
         share: CrawlShareStatus? = nil,
         warnings: [String] = [],
@@ -297,6 +351,7 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         self.lastImportAt = lastImportAt
         self.lastExportAt = lastExportAt
         self.counts = counts
+        self.databases = databases
         self.freshness = freshness
         self.share = share
         self.warnings = warnings
@@ -317,6 +372,7 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         case lastImportAt = "last_import_at"
         case lastExportAt = "last_export_at"
         case counts
+        case databases
         case freshness
         case share
         case warnings

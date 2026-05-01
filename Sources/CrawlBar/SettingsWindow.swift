@@ -400,6 +400,8 @@ struct CrawlBarAppDetailView: View {
                 Divider()
                 self.metrics
                 Divider()
+                self.databases
+                Divider()
                 self.syncSettings
                 Divider()
                 self.gitShareSettings
@@ -460,9 +462,35 @@ struct CrawlBarAppDetailView: View {
                 }
                 GridRow {
                     CrawlBarFact(
-                        label: "Database",
-                        value: self.status?.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown")
+                        label: "Databases",
+                        value: self.databaseSummary)
                     CrawlBarFact(label: "Binary", value: self.installation?.binaryPath == nil ? "Missing" : "Found")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var databases: some View {
+        if let databases = self.status?.databases, !databases.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Databases")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(databases.count)")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                VStack(spacing: 0) {
+                    ForEach(databases) { database in
+                        CrawlBarDatabaseRow(database: database)
+                        if database.id != databases.last?.id {
+                            Divider()
+                                .padding(.leading, 28)
+                        }
+                    }
                 }
             }
         }
@@ -601,6 +629,15 @@ struct CrawlBarAppDetailView: View {
         default:
             "Waiting for status"
         }
+    }
+
+    private var databaseSummary: String {
+        guard let status else { return "Unknown" }
+        if !status.databases.isEmpty {
+            let noun = status.databases.count == 1 ? "resource" : "resources"
+            return "\(status.databases.count) \(noun)"
+        }
+        return status.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown"
     }
 
     private var usesGlobalRefreshBinding: Binding<Bool> {
@@ -745,6 +782,87 @@ struct CrawlBarMetricTile: View {
     }
 }
 
+struct CrawlBarDatabaseRow: View {
+    let database: CrawlDatabaseResource
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: self.iconName)
+                .font(.body)
+                .foregroundStyle(self.database.isPrimary ? .blue : .secondary)
+                .frame(width: 18, height: 22)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(self.database.label)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    if self.database.isPrimary {
+                        Text("Primary")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.blue.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                }
+                Text(self.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                if !self.database.counts.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(self.database.counts.prefix(3)) { count in
+                            Text("\(count.value) \(count.label.lowercased())")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 4) {
+                if let bytes = self.database.bytes {
+                    Text(ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64(bytes)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                if let modifiedAt = self.database.modifiedAt {
+                    Text(CrawlBarDateText.relative(modifiedAt))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var subtitle: String {
+        let pieces = [
+            self.database.role,
+            self.database.path,
+        ].compactMap { $0?.nilIfBlank }
+        return pieces.isEmpty ? self.database.kind.rawValue : pieces.joined(separator: " · ")
+    }
+
+    private var iconName: String {
+        switch self.database.kind {
+        case .sqlite:
+            "internaldrive"
+        case .cache:
+            "externaldrive.connected.to.line.below"
+        case .logical:
+            "square.stack.3d.up"
+        }
+    }
+}
+
 enum CrawlBarFrequencyLabel {
     static func text(for frequency: RefreshFrequency) -> String {
         switch frequency {
@@ -768,5 +886,16 @@ enum CrawlBarDateText {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+extension ByteCountFormatter {
+    static var crawlBarFileSize: ByteCountFormatter {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.includesCount = true
+        return formatter
     }
 }
