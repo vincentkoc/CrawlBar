@@ -3,13 +3,16 @@ import CrawlBarCore
 import SwiftUI
 
 @MainActor
-final class CrawlBarSettingsWindowController {
+final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
 
     func show() {
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApplication.shared.activate()
+            if let model = (window.contentView as? NSHostingView<CrawlBarSettingsView>)?.rootView.model {
+                model.refreshAll()
+            }
             return
         }
 
@@ -21,6 +24,8 @@ final class CrawlBarSettingsWindowController {
             defer: false)
         window.title = "CrawlBar"
         window.toolbarStyle = .unified
+        window.isReleasedWhenClosed = false
+        window.delegate = self
         window.center()
         window.contentMinSize = NSSize(width: 820, height: 580)
         window.contentMaxSize = NSSize(width: 820, height: 580)
@@ -28,6 +33,15 @@ final class CrawlBarSettingsWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate()
         self.window = window
+        Task { @MainActor in
+            model.refreshAll()
+        }
+    }
+
+    nonisolated func windowWillClose(_ notification: Notification) {
+        Task { @MainActor in
+            self.window = nil
+        }
     }
 }
 
@@ -53,7 +67,6 @@ final class CrawlBarSettingsModel: ObservableObject {
 
     init() {
         self.load()
-        self.refreshAll()
     }
 
     func load() {
@@ -347,10 +360,10 @@ struct CrawlBarSettingsView: View {
     @ViewBuilder
     private var detail: some View {
         if let selectedID = self.model.selectedAppID,
-           let index = self.model.apps.firstIndex(where: { $0.id == selectedID })
+           self.model.apps.contains(where: { $0.id == selectedID })
         {
             CrawlBarAppDetailView(
-                app: self.binding(for: index),
+                app: self.binding(for: selectedID),
                 globalRefreshFrequency: self.model.refreshFrequency,
                 installation: self.model.installations[selectedID],
                 status: self.model.statuses[selectedID],
@@ -377,10 +390,13 @@ struct CrawlBarSettingsView: View {
         }
     }
 
-    private func binding(for index: Int) -> Binding<CrawlBarAppConfig> {
+    private func binding(for id: CrawlAppID) -> Binding<CrawlBarAppConfig> {
         Binding(
-            get: { self.model.apps[index] },
+            get: {
+                self.model.apps.first(where: { $0.id == id }) ?? CrawlBarAppConfig(id: id)
+            },
             set: {
+                guard let index = self.model.apps.firstIndex(where: { $0.id == id }) else { return }
                 self.model.apps[index] = $0
                 self.model.save()
             })
