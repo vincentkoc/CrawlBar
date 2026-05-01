@@ -355,6 +355,9 @@ final class CrawlBarMenuModel {
         guard installation.binaryPath != nil else {
             return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
         }
+        if let status = GitcrawlStatusSnapshot.status(for: installation) {
+            return status
+        }
         do {
             let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 5)
             return mapper.status(from: result, manifest: installation.manifest)
