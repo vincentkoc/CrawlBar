@@ -38,7 +38,8 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: title, action: #selector(Self.refreshAll(_:)), keyEquivalent: "r", target: self))
         menu.addItem(.separator())
 
-        for installation in self.model.installations {
+        for installation in self.model.visibleInstallations {
+            let config = self.model.appConfig(for: installation.id)
             let status = self.model.statuses[installation.id]
             let state = status?.state.rawValue ?? (installation.binaryPath == nil ? "missing" : "unknown")
             let summary = status?.summary ?? installation.manifest.description
@@ -48,8 +49,12 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(appItem)
 
             if installation.enabled, installation.binaryPath != nil {
-                menu.addItem(self.actionItem("  Refresh", appID: installation.id, action: "refresh"))
+                menu.addItem(self.actionItem("  Sync", appID: installation.id, action: config?.preferredRefreshAction ?? "refresh"))
                 menu.addItem(self.actionItem("  Doctor", appID: installation.id, action: "doctor"))
+                if config?.shareEnabled == true {
+                    menu.addItem(self.actionItem("  Publish", appID: installation.id, action: config?.preferredShareAction ?? "publish"))
+                    menu.addItem(self.actionItem("  Pull Updates", appID: installation.id, action: config?.preferredUpdateAction ?? "update"))
+                }
             }
         }
 
@@ -135,6 +140,16 @@ final class CrawlBarMenuModel {
 
     init() {
         self.reloadInstallations()
+    }
+
+    var visibleInstallations: [CrawlAppInstallation] {
+        self.installations.filter { installation in
+            self.appConfigs[installation.id]?.showInMenuBar ?? true
+        }
+    }
+
+    func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
+        self.appConfigs[id]
     }
 
     func reloadInstallations() {
