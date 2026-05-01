@@ -2,13 +2,16 @@ import Foundation
 
 public struct CrawlAppRegistry: @unchecked Sendable {
     private let configStore: CrawlBarConfigStore
+    private let catalog: CrawlManifestCatalog
     private let resolver: CrawlExecutableResolver
 
     public init(
         configStore: CrawlBarConfigStore = CrawlBarConfigStore(),
+        catalog: CrawlManifestCatalog = CrawlManifestCatalog(),
         resolver: CrawlExecutableResolver = CrawlExecutableResolver())
     {
         self.configStore = configStore
+        self.catalog = catalog
         self.resolver = resolver
     }
 
@@ -20,7 +23,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         let config = try self.loadConfig()
         return config.apps.compactMap { appConfig in
             guard includeDisabled || appConfig.enabled else { return nil }
-            guard let manifest = BuiltInCrawlApps.manifest(for: appConfig.id) else { return nil }
+            guard let manifest = self.catalog.manifest(for: appConfig.id, config: config) else { return nil }
             let requestedBinary = appConfig.binaryPath?.nilIfBlank ?? manifest.binary.name
             let resolvedBinary = self.resolver.resolve(requestedBinary)
             return CrawlAppInstallation(

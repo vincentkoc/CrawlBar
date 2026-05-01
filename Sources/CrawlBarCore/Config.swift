@@ -66,15 +66,18 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
 
     public var version: Int
     public var refreshFrequency: RefreshFrequency
+    public var manifestDirectories: [String]
     public var apps: [CrawlBarAppConfig]
 
     public init(
         version: Int = Self.currentVersion,
         refreshFrequency: RefreshFrequency = .fifteenMinutes,
+        manifestDirectories: [String] = ["~/.crawlbar/apps"],
         apps: [CrawlBarAppConfig] = [])
     {
         self.version = version
         self.refreshFrequency = refreshFrequency
+        self.manifestDirectories = manifestDirectories
         self.apps = apps
     }
 
@@ -91,11 +94,19 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
         return CrawlBarConfig(
             version: Self.currentVersion,
             refreshFrequency: self.refreshFrequency,
+            manifestDirectories: self.manifestDirectories.isEmpty ? ["~/.crawlbar/apps"] : self.manifestDirectories,
             apps: normalizedApps)
     }
 
     public func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
         self.apps.first { $0.id == id }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case refreshFrequency = "refresh_frequency"
+        case manifestDirectories = "manifest_directories"
+        case apps
     }
 }
 
