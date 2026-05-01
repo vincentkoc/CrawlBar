@@ -62,7 +62,7 @@ enum CrawlBarCLI {
             return
         }
         for app in apps {
-            let marker = app.enabled ? (app.available ? "ok" : "missing") : "disabled"
+            let marker = app.availability == .comingSoon ? "soon" : (app.enabled ? (app.available ? "ok" : "missing") : "disabled")
             print("\(marker)\t\(app.id)\t\(app.displayName)")
         }
     }
@@ -101,6 +101,9 @@ enum CrawlBarCLI {
         let installations = try registry.installations(includeDisabled: true)
             .filter { requestedID == nil || requestedID == CrawlAppID(rawValue: "all") || $0.id == requestedID }
         let statuses = installations.map { installation -> CrawlAppStatus in
+            guard installation.manifest.availability == .available else {
+                return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
+            }
             guard installation.enabled else {
                 return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
             }
@@ -166,6 +169,9 @@ enum CrawlBarCLI {
         guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
+        guard installation.manifest.availability == .available else {
+            throw CLIError.usage("\(installation.manifest.displayName) is coming soon")
+        }
         let result = try installer.install(installation)
         _ = try? CrawlActionLogStore().save(result)
         if json {
@@ -221,6 +227,9 @@ enum CrawlBarCLI {
     {
         guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
+        }
+        guard installation.manifest.availability == .available else {
+            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
         }
         guard installation.enabled else {
             return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
@@ -369,6 +378,7 @@ private struct CLIApp: Encodable {
     var displayName: String
     var enabled: Bool
     var available: Bool
+    var availability: CrawlAppManifest.Availability
     var binaryPath: String?
     var configPath: String?
 
@@ -377,6 +387,7 @@ private struct CLIApp: Encodable {
         self.displayName = installation.manifest.displayName
         self.enabled = installation.enabled
         self.available = installation.binaryPath != nil
+        self.availability = installation.manifest.availability
         self.binaryPath = installation.binaryPath
         self.configPath = installation.configPathOverride
     }
@@ -386,6 +397,7 @@ private struct CLIApp: Encodable {
         case displayName = "display_name"
         case enabled
         case available
+        case availability
         case binaryPath = "binary_path"
         case configPath = "config_path"
     }

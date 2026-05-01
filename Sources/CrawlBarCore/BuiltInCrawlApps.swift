@@ -5,12 +5,20 @@ public enum BuiltInCrawlApps {
     public static let slacrawlID = CrawlAppID(rawValue: "slacrawl")
     public static let discrawlID = CrawlAppID(rawValue: "discrawl")
     public static let notcrawlID = CrawlAppID(rawValue: "notcrawl")
+    public static let gogcliID = CrawlAppID(rawValue: "gogcli")
+    public static let wacliID = CrawlAppID(rawValue: "wacli")
+    public static let birdclawID = CrawlAppID(rawValue: "birdclaw")
+    public static let grainclawID = CrawlAppID(rawValue: "grainclaw")
 
     public static let all: [CrawlAppManifest] = [
         Self.gitcrawl,
         Self.slacrawl,
         Self.discrawl,
         Self.notcrawl,
+        Self.gogcli,
+        Self.wacli,
+        Self.birdclaw,
+        Self.grainclaw,
     ]
 
     public static func manifest(for id: CrawlAppID) -> CrawlAppManifest? {
@@ -146,4 +154,76 @@ public enum BuiltInCrawlApps {
             .init(id: "embedding_model", label: "Embedding model", kind: .choice, defaultValue: "text-embedding-3-small", choices: ["text-embedding-3-small", "text-embedding-3-large"], envVar: "OPENAI_EMBEDDING_MODEL", configKey: "embeddings.model"),
         ],
         install: .init(method: .homebrew, package: "vincentkoc/tap/notcrawl"))
+
+    public static let gogcli = CrawlAppManifest(
+        id: Self.gogcliID,
+        displayName: "Google",
+        description: "Google account archive connector",
+        availability: .comingSoon,
+        binary: .init(name: "gogcli"),
+        branding: .init(symbolName: "g.circle", accentColor: "#4285F4"),
+        paths: .init(
+            defaultConfig: "~/.config/gogcli/config.toml",
+            configEnv: "GOGCLI_CONFIG",
+            defaultDatabase: "~/.config/gogcli/gogcli.db",
+            defaultCache: "~/.config/gogcli/cache",
+            defaultLogs: "~/.config/gogcli/logs",
+            defaultShare: "~/.config/gogcli/share"),
+        commands: [:],
+        capabilities: [],
+        privacy: .init(exportsSecrets: false))
+
+    public static let wacli = CrawlAppManifest(
+        id: Self.wacliID,
+        displayName: "WhatsApp",
+        description: "WhatsApp message archive connector",
+        availability: .comingSoon,
+        binary: .init(name: "wacli"),
+        branding: .init(symbolName: "message.circle", accentColor: "#25D366"),
+        paths: .init(
+            defaultConfig: "~/.config/wacli/config.toml",
+            configEnv: "WACLI_CONFIG",
+            defaultDatabase: "~/.config/wacli/wacli.db",
+            defaultCache: "~/.config/wacli/cache",
+            defaultLogs: "~/.config/wacli/logs",
+            defaultShare: "~/.config/wacli/share"),
+        commands: [:],
+        capabilities: [],
+        privacy: .init(containsPrivateMessages: true, exportsSecrets: false))
+
+    public static let birdclaw = CrawlAppManifest(
+        id: Self.birdclawID,
+        displayName: "X",
+        description: "X/Twitter account archive connector",
+        availability: .comingSoon,
+        binary: .init(name: "birdclaw"),
+        branding: .init(symbolName: "xmark", accentColor: "#111111"),
+        paths: .init(
+            defaultConfig: "~/.config/birdclaw/config.toml",
+            configEnv: "BIRDCLAW_CONFIG",
+            defaultDatabase: "~/.config/birdclaw/birdclaw.db",
+            defaultCache: "~/.config/birdclaw/cache",
+            defaultLogs: "~/.config/birdclaw/logs",
+            defaultShare: "~/.config/birdclaw/share"),
+        commands: [:],
+        capabilities: [],
+        privacy: .init(exportsSecrets: false))
+
+    public static let grainclaw = CrawlAppManifest(
+        id: Self.grainclawID,
+        displayName: "Granola",
+        description: "Granola notes archive connector",
+        availability: .comingSoon,
+        binary: .init(name: "grainclaw"),
+        branding: .init(symbolName: "waveform.and.magnifyingglass", accentColor: "#B56B45"),
+        paths: .init(
+            defaultConfig: "~/.config/grainclaw/config.toml",
+            configEnv: "GRAINCLAW_CONFIG",
+            defaultDatabase: "~/.config/grainclaw/grainclaw.db",
+            defaultCache: "~/.config/grainclaw/cache",
+            defaultLogs: "~/.config/grainclaw/logs",
+            defaultShare: "~/.config/grainclaw/share"),
+        commands: [:],
+        capabilities: [],
+        privacy: .init(containsPrivateMessages: true, exportsSecrets: false))
 }

@@ -81,7 +81,10 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
                 submenu.addItem(self.actionItem("Pull Updates", appID: installation.id, action: config?.preferredUpdateAction ?? "update"))
             }
         } else {
-            submenu.addItem(self.disabledItem(installation.enabled ? "Missing command-line tool" : "Disabled in CrawlBar"))
+            let setupText = installation.manifest.availability == .comingSoon
+                ? "Coming soon"
+                : (installation.enabled ? "Missing command-line tool" : "Disabled in CrawlBar")
+            submenu.addItem(self.disabledItem(setupText))
         }
 
         submenu.addItem(.separator())
@@ -104,6 +107,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func effectiveState(for installation: CrawlAppInstallation, status: CrawlAppStatus?) -> CrawlAppState {
+        if installation.manifest.availability == .comingSoon { return .disabled }
         if !installation.enabled { return .disabled }
         if installation.binaryPath == nil { return .needsConfig }
         return status?.state ?? .unknown
@@ -354,6 +358,9 @@ final class CrawlBarMenuModel {
         mapper: CrawlStatusMapper)
         -> CrawlAppStatus
     {
+        guard installation.manifest.availability == .available else {
+            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
+        }
         guard installation.enabled else {
             return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
         }

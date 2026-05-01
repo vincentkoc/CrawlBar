@@ -223,6 +223,9 @@ final class CrawlBarSettingsModel: ObservableObject {
         mapper: CrawlStatusMapper)
         -> CrawlAppStatus
     {
+        guard installation.manifest.availability == .available else {
+            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
+        }
         guard installation.enabled else {
             return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
         }
@@ -431,6 +434,7 @@ struct CrawlBarSidebarRow: View {
     }
 
     private var rowState: CrawlAppState {
+        if self.manifest?.availability == .comingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.binaryPath == nil { return .needsConfig }
         return self.status?.state ?? .unknown
@@ -438,6 +442,7 @@ struct CrawlBarSidebarRow: View {
 
     private var subtitle: String {
         let binaryName = self.manifest?.binary.name ?? self.app.id.rawValue
+        if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if !self.app.enabled { return "Disabled" }
         if self.binaryPath == nil { return "Missing \(binaryName)" }
         if let lastSyncAt = self.status?.lastSyncAt {
@@ -578,7 +583,7 @@ struct CrawlBarAppDetailView: View {
                     CrawlBarFact(
                         label: "Databases",
                         value: self.databaseSummary)
-                    CrawlBarFact(label: "Binary", value: self.installation?.binaryPath == nil ? "Missing" : "Found")
+                    CrawlBarFact(label: "Binary", value: self.binarySummary)
                 }
             }
         }
@@ -767,6 +772,7 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var effectiveState: CrawlAppState {
+        if self.manifest?.availability == .comingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.installation?.binaryPath == nil { return .needsConfig }
         return self.status?.state ?? .unknown
@@ -774,6 +780,8 @@ struct CrawlBarAppDetailView: View {
 
     private var statusFallback: String {
         switch self.effectiveState {
+        case .disabled where self.manifest?.availability == .comingSoon:
+            "Coming soon"
         case .needsConfig:
             "\(self.manifest?.binary.name ?? self.app.id.rawValue) is not on PATH"
         case .disabled:
@@ -790,6 +798,11 @@ struct CrawlBarAppDetailView: View {
             return "\(status.databases.count) \(noun)"
         }
         return status.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown"
+    }
+
+    private var binarySummary: String {
+        if self.manifest?.availability == .comingSoon { return "Coming soon" }
+        return self.installation?.binaryPath == nil ? "Missing" : "Found"
     }
 
     private var usesGlobalRefreshBinding: Binding<Bool> {
@@ -811,7 +824,8 @@ struct CrawlBarAppDetailView: View {
     }
 
     private func commandAvailable(_ action: String) -> Bool {
-        self.manifest?.commands[action] != nil && self.installation?.binaryPath != nil && self.app.enabled
+        guard self.manifest?.availability == .available else { return false }
+        return self.manifest?.commands[action] != nil && self.installation?.binaryPath != nil && self.app.enabled
     }
 
     private func optionalText(_ keyPath: WritableKeyPath<CrawlBarAppConfig, String?>) -> Binding<String> {

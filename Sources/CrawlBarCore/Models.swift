@@ -17,6 +17,11 @@ public struct CrawlAppID: RawRepresentable, Codable, Hashable, Sendable, Compara
 }
 
 public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
+    public enum Availability: String, Codable, Equatable, Sendable {
+        case available
+        case comingSoon = "coming_soon"
+    }
+
     public struct Binary: Codable, Equatable, Sendable {
         public var name: String
         public var minVersion: String?
@@ -198,6 +203,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var id: CrawlAppID
     public var displayName: String
     public var description: String
+    public var availability: Availability
     public var binary: Binary
     public var branding: Branding
     public var paths: Paths
@@ -212,6 +218,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         id: CrawlAppID,
         displayName: String,
         description: String,
+        availability: Availability = .available,
         binary: Binary,
         branding: Branding,
         paths: Paths,
@@ -225,6 +232,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.id = id
         self.displayName = displayName
         self.description = description
+        self.availability = availability
         self.binary = binary
         self.branding = branding
         self.paths = paths
@@ -240,6 +248,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case id
         case displayName = "display_name"
         case description
+        case availability
         case binary
         case branding
         case paths
@@ -256,6 +265,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.id = try container.decode(CrawlAppID.self, forKey: .id)
         self.displayName = try container.decode(String.self, forKey: .displayName)
         self.description = try container.decode(String.self, forKey: .description)
+        self.availability = try container.decodeIfPresent(Availability.self, forKey: .availability) ?? .available
         self.binary = try container.decode(Binary.self, forKey: .binary)
         self.branding = try container.decode(Branding.self, forKey: .branding)
         self.paths = try container.decode(Paths.self, forKey: .paths)
