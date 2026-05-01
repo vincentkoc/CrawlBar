@@ -16,6 +16,7 @@ enum CrawlBarApp {
 @MainActor
 final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private let settingsWindowController = CrawlBarSettingsWindowController()
     private let model = CrawlBarMenuModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -80,7 +81,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showSettings(_ sender: Any?) {
-        NSWorkspace.shared.open(URL(fileURLWithPath: CrawlBarConfigStore.defaultURL().path))
+        self.settingsWindowController.show()
     }
 
     @objc private func quit(_ sender: Any?) {
