@@ -26,6 +26,8 @@ enum CrawlBarCLI {
         switch command {
         case "apps":
             try Self.printApps(registry: registry, json: options.json)
+        case "logs":
+            try Self.printLogs(json: options.json)
         case "metadata":
             try Self.printMetadata(registry: registry, appID: options.appID, json: options.json)
         case "status":
@@ -70,6 +72,15 @@ enum CrawlBarCLI {
         for manifest in manifests {
             print("\(manifest.id.rawValue)\t\(manifest.displayName)\t\(manifest.binary.name)")
         }
+    }
+
+    private static func printLogs(json: Bool) throws {
+        let logs = CrawlActionLogStore().recent(limit: 50).map { $0.path }
+        if json {
+            try CLIOutput.writeJSON(logs)
+            return
+        }
+        logs.forEach { print($0) }
     }
 
     private static func printStatus(
@@ -124,6 +135,7 @@ enum CrawlBarCLI {
             throw CLIError.usage("\(installation.manifest.binary.name) is not on PATH")
         }
         let result = try runner.run(installation: installation, action: action, timeoutSeconds: 600)
+        _ = try? CrawlActionLogStore().save(result)
         if json {
             try CLIOutput.writeJSON(result)
             return
@@ -154,6 +166,7 @@ enum CrawlBarCLI {
         print("""
         crawlbar commands:
           apps [--json]
+          logs [--json]
           metadata [--app <id>] [--json]
           status [--app <id|all>] [--json]
           doctor --app <id> [--json]
