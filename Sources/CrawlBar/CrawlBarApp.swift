@@ -22,9 +22,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "arrow.trianglehead.2.clockwise.rotate.90",
-            accessibilityDescription: "CrawlBar")
+        statusItem.button?.image = CrawlBarIconFactory.menuBarImage()
         statusItem.button?.imagePosition = .imageLeading
         self.statusItem = statusItem
         self.reloadMenu()
@@ -45,6 +43,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
             let state = status?.state.rawValue ?? (installation.binaryPath == nil ? "missing" : "unknown")
             let summary = status?.summary ?? installation.manifest.description
             let appItem = NSMenuItem(title: "\(installation.manifest.displayName): \(state)", action: nil, keyEquivalent: "")
+            appItem.image = CrawlBarIconFactory.image(for: installation.id, manifest: installation.manifest, size: 18)
             appItem.toolTip = summary
             menu.addItem(appItem)
 

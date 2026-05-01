@@ -259,7 +259,7 @@ struct CrawlBarSidebarRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            CrawlBarAppIcon(manifest: self.manifest, appID: self.app.id)
+            CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -325,7 +325,7 @@ struct CrawlBarAppDetailView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            CrawlBarAppIcon(manifest: self.manifest, appID: self.app.id)
+            CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
                 .frame(width: 54, height: 54)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
@@ -523,31 +523,6 @@ struct CrawlBarPanel<Content: View>: View {
     }
 }
 
-struct CrawlBarAppIcon: View {
-    let manifest: CrawlAppManifest?
-    let appID: CrawlAppID
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 7)
-                .fill(self.color.opacity(0.14))
-            if self.appID.rawValue == "notcrawl" {
-                Text("N")
-                    .font(.system(size: 18, weight: .bold, design: .serif))
-                    .foregroundStyle(self.color)
-            } else {
-                Image(systemName: self.manifest?.branding.symbolName ?? "terminal")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(self.color)
-            }
-        }
-    }
-
-    private var color: Color {
-        Color(hex: self.manifest?.branding.accentColor ?? "#6E6E73")
-    }
-}
-
 struct CrawlBarStatusDot: View {
     let state: CrawlAppState
 
@@ -652,18 +627,5 @@ enum CrawlBarDateText {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
-    }
-}
-
-private extension Color {
-    init(hex: String) {
-        let trimmed = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        let scanner = Scanner(string: trimmed)
-        var value: UInt64 = 0
-        scanner.scanHexInt64(&value)
-        let red = Double((value >> 16) & 0xff) / 255
-        let green = Double((value >> 8) & 0xff) / 255
-        let blue = Double(value & 0xff) / 255
-        self.init(red: red, green: green, blue: blue)
     }
 }
