@@ -70,10 +70,9 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
 
     private func scheduleRefreshTimer() {
         self.refreshTimer?.invalidate()
-        guard let seconds = self.model.refreshFrequency.seconds else { return }
-        self.refreshTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+        self.refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.model.refreshAll {
+                self?.model.runDueAutoSync {
                     self?.reloadMenu()
                 }
             }
@@ -132,6 +131,8 @@ final class CrawlBarMenuModel {
     var statuses: [CrawlAppID: CrawlAppStatus] = [:]
     var isRefreshing = false
     var refreshFrequency: RefreshFrequency = .fifteenMinutes
+    private var appConfigs: [CrawlAppID: CrawlBarAppConfig] = [:]
+    private var lastAutoSyncByAppID: [CrawlAppID: Date] = [:]
 
     init() {
         self.reloadInstallations()
@@ -140,6 +141,7 @@ final class CrawlBarMenuModel {
     func reloadInstallations() {
         if let config = try? self.registry.loadConfig() {
             self.refreshFrequency = config.refreshFrequency
+            self.appConfigs = Dictionary(uniqueKeysWithValues: config.apps.map { ($0.id, $0) })
         }
         self.installations = (try? self.registry.installations(includeDisabled: true)) ?? []
     }
@@ -182,6 +184,51 @@ final class CrawlBarMenuModel {
             await MainActor.run {
                 if let refreshed {
                     self.statuses[refreshed.appID] = refreshed
+                }
+                self.isRefreshing = false
+                onComplete()
+            }
+        }
+    }
+
+    func runDueAutoSync(onComplete: @escaping @MainActor () -> Void) {
+        guard !self.isRefreshing else { return }
+        self.reloadInstallations()
+        let now = Date()
+        let dueInstallations = self.installations.filter { installation in
+            guard let config = self.appConfigs[installation.id], config.enabled, config.autoRefreshEnabled else { return false }
+            guard installation.enabled, installation.binaryPath != nil else { return false }
+            guard let seconds = (config.refreshFrequency ?? self.refreshFrequency).seconds else { return false }
+            let last = self.lastAutoSyncByAppID[installation.id] ?? .distantPast
+            return now.timeIntervalSince(last) >= seconds
+        }
+        guard !dueInstallations.isEmpty else { return }
+
+        self.isRefreshing = true
+        let configs = self.appConfigs
+        let runner = self.runner
+        let mapper = self.mapper
+        let logStore = self.logStore
+        Task.detached {
+            let statuses = dueInstallations.map { installation -> CrawlAppStatus in
+                if let config = configs[installation.id] {
+                    let refreshAction = config.preferredRefreshAction ?? "refresh"
+                    if let result = try? runner.run(installation: installation, action: refreshAction, timeoutSeconds: 600) {
+                        _ = try? logStore.save(result)
+                    }
+                    if config.shareEnabled, config.shareAfterRefresh {
+                        let shareAction = config.preferredShareAction ?? "publish"
+                        if let result = try? runner.run(installation: installation, action: shareAction, timeoutSeconds: 600) {
+                            _ = try? logStore.save(result)
+                        }
+                    }
+                }
+                return Self.status(for: installation, runner: runner, mapper: mapper)
+            }
+            await MainActor.run {
+                for status in statuses {
+                    self.statuses[status.appID] = status
+                    self.lastAutoSyncByAppID[status.appID] = now
                 }
                 self.isRefreshing = false
                 onComplete()
