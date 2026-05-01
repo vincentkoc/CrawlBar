@@ -16,6 +16,7 @@ enum CrawlBarApp {
 @MainActor
 final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var refreshTimer: Timer?
     private let settingsWindowController = CrawlBarSettingsWindowController()
     private let model = CrawlBarMenuModel()
 
@@ -30,6 +31,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         self.model.refreshAll { [weak self] in
             self?.reloadMenu()
         }
+        self.scheduleRefreshTimer()
     }
 
     private func reloadMenu() {
@@ -65,6 +67,18 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
 
+    private func scheduleRefreshTimer() {
+        self.refreshTimer?.invalidate()
+        guard let seconds = self.model.refreshFrequency.seconds else { return }
+        self.refreshTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.model.refreshAll {
+                    self?.reloadMenu()
+                }
+            }
+        }
+    }
+
     @objc private func refreshAll(_ sender: Any?) {
         self.model.refreshAll { [weak self] in
             self?.reloadMenu()
@@ -82,6 +96,9 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSettings(_ sender: Any?) {
         self.settingsWindowController.show()
+        self.model.reloadInstallations()
+        self.scheduleRefreshTimer()
+        self.reloadMenu()
     }
 
     @objc private func quit(_ sender: Any?) {
@@ -108,8 +125,16 @@ final class CrawlBarMenuModel {
     var installations: [CrawlAppInstallation] = []
     var statuses: [CrawlAppID: CrawlAppStatus] = [:]
     var isRefreshing = false
+    var refreshFrequency: RefreshFrequency = .fifteenMinutes
 
     init() {
+        self.reloadInstallations()
+    }
+
+    func reloadInstallations() {
+        if let config = try? self.registry.loadConfig() {
+            self.refreshFrequency = config.refreshFrequency
+        }
         self.installations = (try? self.registry.installations(includeDisabled: true)) ?? []
     }
 
