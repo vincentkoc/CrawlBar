@@ -7,6 +7,7 @@ enum CrawlBarSelfTest {
         try Self.testAppIDSortsByRawValue()
         try Self.testDefaultConfigNormalizesBuiltInApps()
         try Self.testConfigStoreRoundTrips()
+        try Self.testExternalManifestCatalog()
         try Self.testStatusMapperNormalizesCounts()
         try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
@@ -45,6 +46,29 @@ enum CrawlBarSelfTest {
         try Self.expect(loaded.refreshFrequency == .hourly, "refresh frequency round trips")
         try Self.expect(loaded.appConfig(for: BuiltInCrawlApps.gitcrawlID)?.enabled == false, "app enablement round trips")
         try Self.expect(loaded.apps.count == BuiltInCrawlApps.all.count, "config store normalizes built-ins")
+    }
+
+    private static func testExternalManifestCatalog() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-manifest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let manifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "customcrawl"),
+            displayName: "Custom Crawl",
+            description: "A custom crawl app",
+            binary: .init(name: "customcrawl"),
+            branding: .init(symbolName: "square.grid.2x2", accentColor: "#123456"),
+            paths: .init(defaultConfig: "~/.customcrawl/config.toml"),
+            commands: ["status": ["status", "--json"]],
+            capabilities: [.status])
+        let data = try CrawlCoding.makeJSONEncoder().encode(manifest)
+        try data.write(to: directory.appendingPathComponent("customcrawl.json"))
+
+        let config = CrawlBarConfig(manifestDirectories: [directory.path])
+        let manifests = CrawlManifestCatalog().manifests(config: config)
+        try Self.expect(manifests.contains { $0.id == manifest.id }, "external manifests load from disk")
     }
 
     private static func testStatusMapperNormalizesCounts() throws {
