@@ -209,6 +209,28 @@ struct CrawlBarSettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Crawlers")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button {
+                    self.model.refreshAll()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Refresh status")
+                Button {
+                    NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Open logs")
+            }
+
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(self.model.apps) { app in
@@ -239,36 +261,23 @@ struct CrawlBarSettingsView: View {
                     .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
                 Text("Default Sync")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
+                Spacer(minLength: 6)
                 Picker("Default Sync", selection: self.$model.refreshFrequency) {
                     ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
                         Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
                     }
                 }
                 .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: .infinity)
+                .controlSize(.mini)
+                .frame(width: 118)
                 .onChange(of: self.model.refreshFrequency) {
                     self.model.save()
                 }
             }
-
-            HStack(spacing: 8) {
-                Button {
-                    self.model.refreshAll()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                Button {
-                    NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
-                } label: {
-                    Label("Logs", systemImage: "folder")
-                }
-            }
-            .controlSize(.small)
 
             if let error = self.model.lastError {
                 Text(error)
