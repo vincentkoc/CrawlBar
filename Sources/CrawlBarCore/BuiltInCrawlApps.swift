@@ -44,7 +44,10 @@ public enum BuiltInCrawlApps {
         displayName: "Slack Crawl",
         description: "Local-first Slack workspace archive",
         binary: .init(name: "slacrawl"),
-        branding: .init(symbolName: "bubble.left.and.bubble.right", accentColor: "#4A154B"),
+        branding: .init(
+            symbolName: "bubble.left.and.bubble.right",
+            accentColor: "#4A154B",
+            bundleIdentifier: "com.tinyspeck.slackmacgap"),
         paths: .init(
             defaultConfig: "~/.slacrawl/config.toml",
             configEnv: "SLACRAWL_CONFIG",
@@ -68,7 +71,10 @@ public enum BuiltInCrawlApps {
         displayName: "Discord Crawl",
         description: "Local Discord guild and desktop-cache archive",
         binary: .init(name: "discrawl"),
-        branding: .init(symbolName: "antenna.radiowaves.left.and.right", accentColor: "#5865F2"),
+        branding: .init(
+            symbolName: "antenna.radiowaves.left.and.right",
+            accentColor: "#5865F2",
+            bundleIdentifier: "com.hnc.Discord"),
         paths: .init(
             defaultConfig: "~/.discrawl/config.toml",
             configEnv: "DISCRAWL_CONFIG",
@@ -93,7 +99,10 @@ public enum BuiltInCrawlApps {
         displayName: "Notion Crawl",
         description: "Local Notion archive with Markdown and table exports",
         binary: .init(name: "notcrawl"),
-        branding: .init(symbolName: "doc.text.magnifyingglass", accentColor: "#111111"),
+        branding: .init(
+            symbolName: "doc.text.magnifyingglass",
+            accentColor: "#111111",
+            bundleIdentifier: "notion.id"),
         paths: .init(
             defaultConfig: "~/.notcrawl/config.toml",
             configEnv: "NOTCRAWL_CONFIG",
