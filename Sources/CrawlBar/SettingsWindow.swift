@@ -487,6 +487,7 @@ struct CrawlBarAppDetailView: View {
             self.syncSettings
             self.gitShareSettings
         case .settings:
+            self.configuration
             self.paths
             self.privacy
         }
@@ -643,6 +644,22 @@ struct CrawlBarAppDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var configuration: some View {
+        if let options = self.manifest?.configOptions, !options.isEmpty {
+            CrawlBarPanel(
+                title: "Configuration",
+                caption: "Saved locally in CrawlBar config. Secret values are hidden in the UI and redacted from CLI reads.")
+            {
+                ForEach(options) { option in
+                    CrawlBarConfigOptionField(
+                        option: option,
+                        value: self.configValueBinding(for: option))
+                }
+            }
+        }
+    }
+
     private var privacy: some View {
         CrawlBarPanel(title: "Privacy") {
             CrawlBarFact(
@@ -706,6 +723,15 @@ struct CrawlBarAppDetailView: View {
             get: { self.app[keyPath: keyPath] ?? "" },
             set: {
                 self.app[keyPath: keyPath] = $0.nilIfBlank
+                self.save()
+            })
+    }
+
+    private func configValueBinding(for option: CrawlAppManifest.ConfigOption) -> Binding<String> {
+        Binding(
+            get: { self.app.configValues[option.id] ?? option.defaultValue ?? "" },
+            set: {
+                self.app.configValues[option.id] = $0.nilIfBlank
                 self.save()
             })
     }
@@ -899,6 +925,69 @@ struct CrawlBarDatabaseRow: View {
         case .logical:
             "square.stack.3d.up"
         }
+    }
+}
+
+struct CrawlBarConfigOptionField: View {
+    let option: CrawlAppManifest.ConfigOption
+    @Binding var value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            switch self.option.kind {
+            case .secret:
+                SecureField(self.option.label, text: self.$value)
+                    .textFieldStyle(.roundedBorder)
+            case .boolean:
+                Toggle(self.option.label, isOn: self.booleanBinding)
+            case .choice:
+                Picker(self.option.label, selection: self.$value) {
+                    ForEach(self.choices, id: \.self) { choice in
+                        Text(choice).tag(choice)
+                    }
+                }
+                .controlSize(.small)
+            case .string:
+                TextField(self.option.placeholder ?? self.option.label, text: self.$value)
+                    .textFieldStyle(.roundedBorder)
+            }
+            if let help = self.option.help?.nilIfBlank {
+                Text(help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                if let envVar = self.option.envVar?.nilIfBlank {
+                    Text(envVar)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+                if let configKey = self.option.configKey?.nilIfBlank {
+                    Text(configKey)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private var choices: [String] {
+        if self.option.choices.contains(self.value) {
+            return self.option.choices
+        }
+        if let defaultValue = self.option.defaultValue, !self.option.choices.contains(defaultValue) {
+            return [defaultValue] + self.option.choices
+        }
+        return self.option.choices
+    }
+
+    private var booleanBinding: Binding<Bool> {
+        Binding(
+            get: { ["1", "true", "yes", "on"].contains(self.value.lowercased()) },
+            set: { self.value = $0 ? "true" : "false" })
     }
 }
 

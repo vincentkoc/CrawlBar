@@ -36,7 +36,10 @@ enum CrawlBarSelfTest {
         let store = CrawlBarConfigStore(fileURL: url)
         let config = CrawlBarConfig(
             refreshFrequency: .hourly,
-            apps: [CrawlBarAppConfig(id: BuiltInCrawlApps.gitcrawlID, enabled: false)])
+            apps: [CrawlBarAppConfig(
+                id: BuiltInCrawlApps.gitcrawlID,
+                enabled: false,
+                configValues: ["embedding_model": "text-embedding-3-large"])])
 
         try store.save(config)
         guard let loaded = try store.load() else {
@@ -45,6 +48,7 @@ enum CrawlBarSelfTest {
 
         try Self.expect(loaded.refreshFrequency == .hourly, "refresh frequency round trips")
         try Self.expect(loaded.appConfig(for: BuiltInCrawlApps.gitcrawlID)?.enabled == false, "app enablement round trips")
+        try Self.expect(loaded.appConfig(for: BuiltInCrawlApps.gitcrawlID)?.configValues["embedding_model"] == "text-embedding-3-large", "app config values round trip")
         try Self.expect(loaded.apps.count == BuiltInCrawlApps.all.count, "config store normalizes built-ins")
     }
 
@@ -69,6 +73,7 @@ enum CrawlBarSelfTest {
         let config = CrawlBarConfig(manifestDirectories: [directory.path])
         let manifests = CrawlManifestCatalog().manifests(config: config)
         try Self.expect(manifests.contains { $0.id == manifest.id }, "external manifests load from disk")
+        try Self.expect(BuiltInCrawlApps.gitcrawl.configOptions.contains { $0.id == "embedding_model" }, "built-in config options exist")
     }
 
     private static func testStatusMapperNormalizesCounts() throws {

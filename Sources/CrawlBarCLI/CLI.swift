@@ -40,7 +40,7 @@ enum CrawlBarCLI {
             }
             try Self.runAction(action, registry: registry, runner: runner, json: options.json, appID: options.requiredAppID())
         case "config":
-            try Self.runConfig(options)
+            try Self.runConfig(options, registry: registry)
         case "help", "--help", "-h":
             Self.printHelp()
         default:
@@ -149,7 +149,7 @@ enum CrawlBarCLI {
         }
     }
 
-    private static func runConfig(_ options: CLIOptions) throws {
+    private static func runConfig(_ options: CLIOptions, registry: CrawlAppRegistry) throws {
         let store = CrawlBarConfigStore()
         switch options.positionals.first {
         case "path":
@@ -160,9 +160,84 @@ enum CrawlBarCLI {
         case "init", nil:
             let config = try store.loadOrCreateDefault()
             try CLIOutput.writeJSON(config)
+        case "get":
+            let appID = try options.requiredAppID()
+            let config = try store.loadOrCreateDefault()
+            let installation = try registry.installation(for: appID)
+            let appConfig = config.appConfig(for: appID) ?? CrawlBarAppConfig(id: appID)
+            let values = Self.configValues(
+                appConfig: appConfig,
+                manifest: installation?.manifest,
+                key: options.key,
+                revealSecrets: options.revealSecrets)
+            if options.json {
+                try CLIOutput.writeJSON(values)
+                return
+            }
+            if let key = options.key {
+                guard let value = values.first else {
+                    throw CLIError.usage("unknown config key for \(appID.rawValue): \(key)")
+                }
+                print(value.value ?? "")
+                return
+            }
+            for value in values {
+                print("\(value.id)\t\(value.value ?? "")")
+            }
+        case "set":
+            let appID = try options.requiredAppID()
+            guard let key = options.key?.nilIfBlank else {
+                throw CLIError.usage("config set requires --key <id>")
+            }
+            guard let value = options.value else {
+                throw CLIError.usage("config set requires --value <value>")
+            }
+            var config = try store.loadOrCreateDefault()
+            guard let index = config.apps.firstIndex(where: { $0.id == appID }) else {
+                throw CLIError.usage("unknown app: \(appID.rawValue)")
+            }
+            if value.nilIfBlank == nil {
+                config.apps[index].configValues.removeValue(forKey: key)
+            } else {
+                config.apps[index].configValues[key] = value
+            }
+            try store.save(config)
+            if options.json {
+                try CLIOutput.writeJSON(["app_id": appID.rawValue, "key": key, "updated": "true"])
+                return
+            }
+            print("ok")
         case let command?:
             throw CLIError.usage("unknown config command: \(command)")
         }
+    }
+
+    private static func configValues(
+        appConfig: CrawlBarAppConfig,
+        manifest: CrawlAppManifest?,
+        key: String?,
+        revealSecrets: Bool)
+        -> [CLIConfigValue]
+    {
+        let options = manifest?.configOptions ?? []
+        let knownIDs = Set(options.map(\.id))
+        let extraOptions = appConfig.configValues.keys
+            .filter { !knownIDs.contains($0) }
+            .sorted()
+            .map { CrawlAppManifest.ConfigOption(id: $0, label: $0) }
+        return (options + extraOptions)
+            .filter { key == nil || $0.id == key }
+            .map { option in
+                let rawValue = appConfig.configValues[option.id] ?? option.defaultValue
+                let isSecret = option.kind == .secret
+                return CLIConfigValue(
+                    id: option.id,
+                    label: option.label,
+                    value: isSecret && !revealSecrets && rawValue?.nilIfBlank != nil ? "********" : rawValue,
+                    secret: isSecret,
+                    envVar: option.envVar,
+                    configKey: option.configKey)
+            }
     }
 
     private static func printHelp() {
@@ -176,7 +251,27 @@ enum CrawlBarCLI {
           refresh --app <id> [--json]
           action <action-id> --app <id> [--json]
           config path|validate|init
+          config get --app <id> [--key <id>] [--json] [--reveal]
+          config set --app <id> --key <id> --value <value> [--json]
         """)
+    }
+}
+
+private struct CLIConfigValue: Encodable {
+    var id: String
+    var label: String
+    var value: String?
+    var secret: Bool
+    var envVar: String?
+    var configKey: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case value
+        case secret
+        case envVar = "env_var"
+        case configKey = "config_key"
     }
 }
 
@@ -210,6 +305,9 @@ private struct CLIApp: Encodable {
 private struct CLIOptions {
     var json = false
     var appID: CrawlAppID?
+    var key: String?
+    var value: String?
+    var revealSecrets = false
     var positionals: [String] = []
 
     init(_ arguments: ArraySlice<String>) {
@@ -222,6 +320,12 @@ private struct CLIOptions {
                 if let value = iterator.next() {
                     self.appID = CrawlAppID(rawValue: value)
                 }
+            case "--key":
+                self.key = iterator.next()
+            case "--value":
+                self.value = iterator.next()
+            case "--reveal":
+                self.revealSecrets = true
             default:
                 self.positionals.append(argument)
             }

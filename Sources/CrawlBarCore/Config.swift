@@ -36,6 +36,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
     public var preferredShareAction: String?
     public var preferredUpdateAction: String?
     public var showInMenuBar: Bool
+    public var configValues: [String: String]
 
     public init(
         id: CrawlAppID,
@@ -49,7 +50,8 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         shareAfterRefresh: Bool = false,
         preferredShareAction: String? = "publish",
         preferredUpdateAction: String? = "update",
-        showInMenuBar: Bool = true)
+        showInMenuBar: Bool = true,
+        configValues: [String: String] = [:])
     {
         self.id = id
         self.enabled = enabled
@@ -63,6 +65,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         self.preferredShareAction = preferredShareAction
         self.preferredUpdateAction = preferredUpdateAction
         self.showInMenuBar = showInMenuBar
+        self.configValues = configValues
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -78,6 +81,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         case preferredShareAction = "preferred_share_action"
         case preferredUpdateAction = "preferred_update_action"
         case showInMenuBar = "show_in_menu_bar"
+        case configValues = "config_values"
     }
 
     public init(from decoder: Decoder) throws {
@@ -94,6 +98,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         self.preferredShareAction = try container.decodeIfPresent(String.self, forKey: .preferredShareAction) ?? "publish"
         self.preferredUpdateAction = try container.decodeIfPresent(String.self, forKey: .preferredUpdateAction) ?? "update"
         self.showInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true
+        self.configValues = try container.decodeIfPresent([String: String].self, forKey: .configValues) ?? [:]
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -110,6 +115,9 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         try container.encodeIfPresent(self.preferredShareAction, forKey: .preferredShareAction)
         try container.encodeIfPresent(self.preferredUpdateAction, forKey: .preferredUpdateAction)
         try container.encode(self.showInMenuBar, forKey: .showInMenuBar)
+        if !self.configValues.isEmpty {
+            try container.encode(self.configValues, forKey: .configValues)
+        }
     }
 }
 

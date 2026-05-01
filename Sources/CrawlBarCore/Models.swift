@@ -114,6 +114,72 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         }
     }
 
+    public enum ConfigOptionKind: String, Codable, Equatable, Sendable {
+        case string
+        case secret
+        case boolean
+        case choice
+    }
+
+    public struct ConfigOption: Codable, Equatable, Sendable, Identifiable {
+        public var id: String
+        public var label: String
+        public var kind: ConfigOptionKind
+        public var help: String?
+        public var placeholder: String?
+        public var defaultValue: String?
+        public var choices: [String]
+        public var envVar: String?
+        public var configKey: String?
+
+        public init(
+            id: String,
+            label: String,
+            kind: ConfigOptionKind = .string,
+            help: String? = nil,
+            placeholder: String? = nil,
+            defaultValue: String? = nil,
+            choices: [String] = [],
+            envVar: String? = nil,
+            configKey: String? = nil)
+        {
+            self.id = id
+            self.label = label
+            self.kind = kind
+            self.help = help
+            self.placeholder = placeholder
+            self.defaultValue = defaultValue
+            self.choices = choices
+            self.envVar = envVar
+            self.configKey = configKey
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case label
+            case kind
+            case help
+            case placeholder
+            case defaultValue = "default_value"
+            case choices
+            case envVar = "env_var"
+            case configKey = "config_key"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.id = try container.decode(String.self, forKey: .id)
+            self.label = try container.decodeIfPresent(String.self, forKey: .label) ?? self.id
+            self.kind = try container.decodeIfPresent(ConfigOptionKind.self, forKey: .kind) ?? .string
+            self.help = try container.decodeIfPresent(String.self, forKey: .help)
+            self.placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
+            self.defaultValue = try container.decodeIfPresent(String.self, forKey: .defaultValue)
+            self.choices = try container.decodeIfPresent([String].self, forKey: .choices) ?? []
+            self.envVar = try container.decodeIfPresent(String.self, forKey: .envVar)
+            self.configKey = try container.decodeIfPresent(String.self, forKey: .configKey)
+        }
+    }
+
     public var schemaVersion: Int
     public var id: CrawlAppID
     public var displayName: String
@@ -124,6 +190,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var commands: [String: [String]]
     public var capabilities: [CrawlAppCapability]
     public var privacy: Privacy
+    public var configOptions: [ConfigOption]
 
     public init(
         schemaVersion: Int = 1,
@@ -135,7 +202,8 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         paths: Paths,
         commands: [String: [String]],
         capabilities: [CrawlAppCapability],
-        privacy: Privacy = Privacy())
+        privacy: Privacy = Privacy(),
+        configOptions: [ConfigOption] = [])
     {
         self.schemaVersion = schemaVersion
         self.id = id
@@ -147,6 +215,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.commands = commands
         self.capabilities = capabilities
         self.privacy = privacy
+        self.configOptions = configOptions
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -160,6 +229,22 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case commands
         case capabilities
         case privacy
+        case configOptions = "config_options"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        self.id = try container.decode(CrawlAppID.self, forKey: .id)
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.description = try container.decode(String.self, forKey: .description)
+        self.binary = try container.decode(Binary.self, forKey: .binary)
+        self.branding = try container.decode(Branding.self, forKey: .branding)
+        self.paths = try container.decode(Paths.self, forKey: .paths)
+        self.commands = try container.decode([String: [String]].self, forKey: .commands)
+        self.capabilities = try container.decode([CrawlAppCapability].self, forKey: .capabilities)
+        self.privacy = try container.decodeIfPresent(Privacy.self, forKey: .privacy) ?? Privacy()
+        self.configOptions = try container.decodeIfPresent([ConfigOption].self, forKey: .configOptions) ?? []
     }
 }
 

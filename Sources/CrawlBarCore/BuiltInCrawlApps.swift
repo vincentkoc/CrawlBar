@@ -40,7 +40,12 @@ public enum BuiltInCrawlApps {
             "refresh": ["refresh"],
         ],
         capabilities: [.status, .doctor, .refresh, .search],
-        privacy: .init())
+        privacy: .init(),
+        configOptions: [
+            .init(id: "github_token", label: "GitHub token", kind: .secret, help: "Token used for GitHub API refreshes.", placeholder: "ghp_...", envVar: "GITHUB_TOKEN", configKey: "github.token"),
+            .init(id: "openai_api_key", label: "OpenAI API key", kind: .secret, help: "Used when Git Crawl generates embeddings.", placeholder: "sk-...", envVar: "OPENAI_API_KEY", configKey: "openai.api_key"),
+            .init(id: "embedding_model", label: "Embedding model", kind: .choice, help: "Model used for local semantic indexing.", defaultValue: "text-embedding-3-small", choices: ["text-embedding-3-small", "text-embedding-3-large"], envVar: "OPENAI_EMBEDDING_MODEL", configKey: "embeddings.model"),
+        ])
 
     public static let slacrawl = CrawlAppManifest(
         id: Self.slacrawlID,
@@ -67,7 +72,12 @@ public enum BuiltInCrawlApps {
             "update": ["--format", "json", "update"],
         ],
         capabilities: [.status, .doctor, .refresh, .search, .publish, .subscribe, .update, .desktopCache],
-        privacy: .init())
+        privacy: .init(),
+        configOptions: [
+            .init(id: "slack_token", label: "Slack token", kind: .secret, help: "User or bot token for Slack API sync.", placeholder: "xoxp- or xoxb-", envVar: "SLACK_TOKEN", configKey: "slack.token"),
+            .init(id: "openai_api_key", label: "OpenAI API key", kind: .secret, help: "Used when Slack Crawl generates embeddings.", placeholder: "sk-...", envVar: "OPENAI_API_KEY", configKey: "openai.api_key"),
+            .init(id: "embedding_model", label: "Embedding model", kind: .choice, defaultValue: "text-embedding-3-small", choices: ["text-embedding-3-small", "text-embedding-3-large"], envVar: "OPENAI_EMBEDDING_MODEL", configKey: "embeddings.model"),
+        ])
 
     public static let discrawl = CrawlAppManifest(
         id: Self.discrawlID,
@@ -95,7 +105,12 @@ public enum BuiltInCrawlApps {
             "update": ["--json", "update"],
         ],
         capabilities: [.status, .doctor, .refresh, .search, .publish, .subscribe, .update, .desktopCache],
-        privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["@me"]))
+        privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["@me"]),
+        configOptions: [
+            .init(id: "discord_token", label: "Discord token", kind: .secret, help: "Token for Discord API or desktop-cache assisted sync.", placeholder: "token", envVar: "DISCORD_TOKEN", configKey: "discord.token"),
+            .init(id: "openai_api_key", label: "OpenAI API key", kind: .secret, help: "Used when Discord Crawl generates embeddings.", placeholder: "sk-...", envVar: "OPENAI_API_KEY", configKey: "openai.api_key"),
+            .init(id: "embedding_model", label: "Embedding model", kind: .choice, defaultValue: "text-embedding-3-small", choices: ["text-embedding-3-small", "text-embedding-3-large"], envVar: "OPENAI_EMBEDDING_MODEL", configKey: "embeddings.model"),
+        ])
 
     public static let notcrawl = CrawlAppManifest(
         id: Self.notcrawlID,
@@ -123,5 +138,10 @@ public enum BuiltInCrawlApps {
             "update": ["update"],
         ],
         capabilities: [.status, .doctor, .refresh, .search, .publish, .subscribe, .update, .exportMarkdown, .exportDatabase, .maintain],
-        privacy: .init())
+        privacy: .init(),
+        configOptions: [
+            .init(id: "notion_token", label: "Notion token", kind: .secret, help: "Token or session credential for Notion sync.", placeholder: "secret_...", envVar: "NOTION_TOKEN", configKey: "notion.token"),
+            .init(id: "openai_api_key", label: "OpenAI API key", kind: .secret, help: "Used when Notion Crawl generates embeddings.", placeholder: "sk-...", envVar: "OPENAI_API_KEY", configKey: "openai.api_key"),
+            .init(id: "embedding_model", label: "Embedding model", kind: .choice, defaultValue: "text-embedding-3-small", choices: ["text-embedding-3-small", "text-embedding-3-large"], envVar: "OPENAI_EMBEDDING_MODEL", configKey: "embeddings.model"),
+        ])
 }
