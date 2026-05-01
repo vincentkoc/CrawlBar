@@ -10,6 +10,7 @@ let package = Package(
         .library(name: "CrawlBarCore", targets: ["CrawlBarCore"]),
         .executable(name: "CrawlBar", targets: ["CrawlBar"]),
         .executable(name: "crawlbar", targets: ["CrawlBarCLI"]),
+        .executable(name: "crawlbar-selftest", targets: ["CrawlBarSelfTest"]),
     ],
     targets: [
         .target(
@@ -29,8 +30,8 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
-        .testTarget(
-            name: "CrawlBarTests",
+        .executableTarget(
+            name: "CrawlBarSelfTest",
             dependencies: ["CrawlBarCore"],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
