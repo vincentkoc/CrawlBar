@@ -20,6 +20,12 @@ final class CrawlBarSettingsWindowController {
             backing: .buffered,
             defer: false)
         window.title = "CrawlBar Settings"
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unifiedCompact
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.center()
         window.contentMinSize = NSSize(width: 860, height: 560)
         window.contentView = NSHostingView(rootView: CrawlBarSettingsView(model: model))
@@ -154,14 +160,20 @@ struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            self.sidebar
-                .frame(width: 282)
-                .background(Color(nsColor: .windowBackgroundColor))
-            Divider()
-            self.detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .controlBackgroundColor))
+        ZStack {
+            CrawlBarVisualEffect(material: .underWindowBackground, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+            HStack(spacing: 0) {
+                self.sidebar
+                    .frame(width: 292)
+                    .background(CrawlBarVisualEffect(material: .sidebar, blendingMode: .withinWindow))
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor).opacity(0.45))
+                    .frame(width: 0.5)
+                self.detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(CrawlBarVisualEffect(material: .contentBackground, blendingMode: .withinWindow))
+            }
         }
     }
 
@@ -181,10 +193,24 @@ struct CrawlBarSettingsView: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
 
-            Picker("Global", selection: self.$model.refreshFrequency) {
-                ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
-                    Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
+            CrawlBarSidebarSummary(
+                apps: self.model.apps,
+                installations: self.model.installations,
+                statuses: self.model.statuses)
+            .padding(.horizontal, 14)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Default Sync")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Picker("Default Sync", selection: self.$model.refreshFrequency) {
+                    ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
+                        Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
+                    }
                 }
+                .labelsHidden()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, 16)
             .onChange(of: self.model.refreshFrequency) {
@@ -202,6 +228,7 @@ struct CrawlBarSettingsView: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
 
             if let error = self.model.lastError {
                 Text(error)
@@ -258,18 +285,18 @@ struct CrawlBarSidebarRow: View {
     let binaryPath: String?
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 11) {
             CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
-                .frame(width: 30, height: 30)
+                .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(self.manifest?.displayName ?? self.app.id.rawValue)
-                        .font(.headline)
+                        .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     CrawlBarStatusDot(state: self.rowState)
                 }
                 Text(self.subtitle)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -319,8 +346,11 @@ struct CrawlBarAppDetailView: View {
                 self.paths
                 self.privacy
             }
-            .padding(24)
+            .padding(.top, 26)
+            .padding(.horizontal, 26)
+            .padding(.bottom, 28)
         }
+        .scrollContentBackground(.hidden)
     }
 
     private var header: some View {
@@ -338,18 +368,21 @@ struct CrawlBarAppDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button(action: self.moveUp) {
-                Image(systemName: "arrow.up")
+            ControlGroup {
+                Button(action: self.moveUp) {
+                    Image(systemName: "arrow.up")
+                }
+                .help("Move up")
+                Button(action: self.moveDown) {
+                    Image(systemName: "arrow.down")
+                }
+                .help("Move down")
+                Button(action: self.refreshStatus) {
+                    Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
+                }
+                .help("Refresh status")
             }
-            .help("Move up")
-            Button(action: self.moveDown) {
-                Image(systemName: "arrow.down")
-            }
-            .help("Move down")
-            Button(action: self.refreshStatus) {
-                Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
-            }
-            .help("Refresh status")
+            .controlGroupStyle(.compactMenu)
         }
     }
 
@@ -381,29 +414,48 @@ struct CrawlBarAppDetailView: View {
 
     private var syncSettings: some View {
         CrawlBarPanel(title: "Sync") {
-            Toggle("Enabled", isOn: self.$app.enabled)
-                .onChange(of: self.app.enabled) { self.save() }
-            Toggle("Show in menu bar", isOn: self.$app.showInMenuBar)
-                .onChange(of: self.app.showInMenuBar) { self.save() }
-            Toggle("Automatic sync", isOn: self.$app.autoRefreshEnabled)
-                .onChange(of: self.app.autoRefreshEnabled) { self.save() }
-            Toggle("Use global sync schedule", isOn: self.usesGlobalRefreshBinding)
-                .disabled(!self.app.autoRefreshEnabled)
+            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
+                GridRow {
+                    Toggle("Enabled", isOn: self.$app.enabled)
+                        .onChange(of: self.app.enabled) { self.save() }
+                    Toggle("Show in menu bar", isOn: self.$app.showInMenuBar)
+                        .onChange(of: self.app.showInMenuBar) { self.save() }
+                }
+                GridRow {
+                    Toggle("Automatic sync", isOn: self.$app.autoRefreshEnabled)
+                        .onChange(of: self.app.autoRefreshEnabled) { self.save() }
+                    Toggle("Use default schedule", isOn: self.usesGlobalRefreshBinding)
+                        .disabled(!self.app.autoRefreshEnabled)
+                }
+            }
             Picker("Sync every", selection: self.refreshFrequencyBinding) {
                 ForEach(RefreshFrequency.allCases, id: \.self) { frequency in
                     Text(CrawlBarFrequencyLabel.text(for: frequency)).tag(frequency)
                 }
             }
             .disabled(!self.app.autoRefreshEnabled || self.app.refreshFrequency == nil)
+            .controlSize(.small)
             Text("Global sync schedule: \(CrawlBarFrequencyLabel.text(for: self.globalRefreshFrequency))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Sync Now") { self.runAction(self.app.preferredRefreshAction ?? "refresh") }
+                Button {
+                    self.runAction(self.app.preferredRefreshAction ?? "refresh")
+                } label: {
+                    Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                }
                     .disabled(!self.commandAvailable(self.app.preferredRefreshAction ?? "refresh"))
-                Button("Doctor") { self.runAction("doctor") }
+                Button {
+                    self.runAction("doctor")
+                } label: {
+                    Label("Doctor", systemImage: "stethoscope")
+                }
                     .disabled(!self.commandAvailable("doctor"))
-                Button("Update") { self.runAction(self.app.preferredUpdateAction ?? "update") }
+                Button {
+                    self.runAction(self.app.preferredUpdateAction ?? "update")
+                } label: {
+                    Label("Update", systemImage: "square.and.arrow.down")
+                }
                     .disabled(!self.commandAvailable(self.app.preferredUpdateAction ?? "update"))
             }
         }
@@ -518,8 +570,81 @@ struct CrawlBarPanel<Content: View>: View {
             self.content
         }
         .padding(14)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.38), lineWidth: 0.5)
+        }
+    }
+}
+
+struct CrawlBarSidebarSummary: View {
+    let apps: [CrawlBarAppConfig]
+    let installations: [CrawlAppID: CrawlAppInstallation]
+    let statuses: [CrawlAppID: CrawlAppStatus]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            self.summaryItem("Online", value: "\(self.onlineCount)", color: .green)
+            self.summaryItem("Needs Setup", value: "\(self.needsSetupCount)", color: .red)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
+        }
+    }
+
+    private var onlineCount: Int {
+        self.apps.filter { app in
+            guard app.enabled, self.installations[app.id]?.binaryPath != nil else { return false }
+            return self.statuses[app.id]?.state == .current
+        }.count
+    }
+
+    private var needsSetupCount: Int {
+        self.apps.filter { app in
+            !app.enabled || self.installations[app.id]?.binaryPath == nil || self.statuses[app.id]?.state == .needsAuth
+        }.count
+    }
+
+    private func summaryItem(_ label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 15, weight: .semibold))
+                    .monospacedDigit()
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct CrawlBarVisualEffect: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = self.material
+        view.blendingMode = self.blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = self.material
+        view.blendingMode = self.blendingMode
+        view.state = .active
     }
 }
 
