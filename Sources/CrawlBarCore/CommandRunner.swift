@@ -23,8 +23,8 @@ public struct CrawlCommandRedactor: Sendable {
     public func redact(_ text: String) -> String {
         var redacted = text
         let patterns: [(String, String)] = [
+            (#"(?i)(Bearer\s+)[^\s"',}]+"#, "$1[REDACTED]"),
             (#"(?i)(api[_-]?key|token|secret|password|cookie|authorization)(["'\s:=]+)([^\s"',}]+)"#, "$1$2[REDACTED]"),
-            (#"(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]+"#, "$1[REDACTED]"),
             (#"(?i)(xox[baprs]-)[A-Za-z0-9-]+"#, "$1[REDACTED]"),
             (#"(?i)(discord(?:_token)?["'\s:=]+)([^\s"',}]+)"#, "$1[REDACTED]"),
         ]

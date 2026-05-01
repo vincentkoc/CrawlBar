@@ -7,6 +7,8 @@ enum CrawlBarSelfTest {
         try Self.testAppIDSortsByRawValue()
         try Self.testDefaultConfigNormalizesBuiltInApps()
         try Self.testConfigStoreRoundTrips()
+        try Self.testStatusMapperNormalizesCounts()
+        try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
     }
 
@@ -43,6 +45,30 @@ enum CrawlBarSelfTest {
         try Self.expect(loaded.refreshFrequency == .hourly, "refresh frequency round trips")
         try Self.expect(loaded.appConfig(for: BuiltInCrawlApps.gitcrawlID)?.enabled == false, "app enablement round trips")
         try Self.expect(loaded.apps.count == BuiltInCrawlApps.all.count, "config store normalizes built-ins")
+    }
+
+    private static func testStatusMapperNormalizesCounts() throws {
+        let output = """
+        {"message_count":42,"channel_count":3,"last_sync_at":"2026-05-01T12:00:00Z","db_path":"/tmp/discrawl.db"}
+        """
+        let result = CrawlCommandResult(
+            appID: BuiltInCrawlApps.discrawlID,
+            action: "status",
+            exitCode: 0,
+            stdout: output,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+
+        let status = CrawlStatusMapper().status(from: result, manifest: BuiltInCrawlApps.discrawl)
+        try Self.expect(status.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)), "discrawl messages map")
+        try Self.expect(status.databasePath == "/tmp/discrawl.db", "database path maps")
+    }
+
+    private static func testRedactorScrubsSecrets() throws {
+        let redacted = CrawlCommandRedactor().redact("token=abc123\nAuthorization: Bearer secret-token")
+        try Self.expect(!redacted.contains("abc123"), "token value redacts")
+        try Self.expect(!redacted.contains("secret-token"), "bearer value redacts")
     }
 
     private static func expect(_ condition: Bool, _ message: String) throws {
