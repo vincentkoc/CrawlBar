@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Selftest
+        run: swift run crawlbar-selftest
+      - name: CLI smoke
+        run: |
+          swift run crawlbar apps --json
+          swift run crawlbar metadata --json
+          swift run crawlbar config validate
