@@ -55,6 +55,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Open Logs", action: #selector(Self.openLogs(_:)), keyEquivalent: "l", target: self))
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(Self.showSettings(_:)), keyEquivalent: ",", target: self))
         menu.addItem(NSMenuItem(title: "Quit CrawlBar", action: #selector(Self.quit(_:)), keyEquivalent: "q", target: self))
         self.statusItem?.menu = menu
@@ -101,6 +102,10 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         self.reloadMenu()
     }
 
+    @objc private func openLogs(_ sender: Any?) {
+        NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
+    }
+
     @objc private func quit(_ sender: Any?) {
         NSApplication.shared.terminate(nil)
     }
@@ -121,6 +126,7 @@ final class CrawlBarMenuModel {
     private let registry = CrawlAppRegistry()
     private let runner = CrawlCommandRunner()
     private let mapper = CrawlStatusMapper()
+    private let logStore = CrawlActionLogStore()
 
     var installations: [CrawlAppInstallation] = []
     var statuses: [CrawlAppID: CrawlAppStatus] = [:]
@@ -164,10 +170,13 @@ final class CrawlBarMenuModel {
         let registry = self.registry
         let runner = self.runner
         let mapper = self.mapper
+        let logStore = self.logStore
         Task.detached {
             let installation = try? registry.installation(for: appID)
             if let installation {
-                _ = try? runner.run(installation: installation, action: action, timeoutSeconds: 600)
+                if let result = try? runner.run(installation: installation, action: action, timeoutSeconds: 600) {
+                    _ = try? logStore.save(result)
+                }
             }
             let refreshed = installation.map { Self.status(for: $0, runner: runner, mapper: mapper) }
             await MainActor.run {
