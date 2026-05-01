@@ -15,14 +15,15 @@ final class CrawlBarSettingsWindowController {
 
         let model = CrawlBarSettingsModel()
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 580),
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false)
         window.title = "CrawlBar"
         window.toolbarStyle = .unified
         window.center()
-        window.contentMinSize = NSSize(width: 660, height: 480)
+        window.contentMinSize = NSSize(width: 820, height: 580)
+        window.contentMaxSize = NSSize(width: 820, height: 580)
         window.contentView = NSHostingView(rootView: CrawlBarSettingsView(model: model))
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate()
@@ -202,12 +203,11 @@ struct CrawlBarSettingsView: View {
         HStack(alignment: .top, spacing: 16) {
             self.sidebar
             self.detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(width: 522, height: 548, alignment: .topLeading)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .frame(width: 700, height: 520)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(width: 820, height: 580, alignment: .leading)
     }
 
     private var sidebar: some View {
@@ -289,8 +289,7 @@ struct CrawlBarSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(width: 236)
-        .frame(maxHeight: .infinity)
+        .frame(width: 246, height: 548)
     }
 
     @ViewBuilder
@@ -345,7 +344,7 @@ struct CrawlBarSidebarRow: View {
                 .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(self.manifest?.displayName ?? self.app.id.rawValue)
+                    Text(CrawlBarCrawlerTitle.text(for: self.app.id, manifest: self.manifest))
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     CrawlBarStatusDot(state: self.rowState)
@@ -367,12 +366,35 @@ struct CrawlBarSidebarRow: View {
     }
 
     private var subtitle: String {
+        let binaryName = self.manifest?.binary.name ?? self.app.id.rawValue
         if !self.app.enabled { return "Disabled" }
-        if self.binaryPath == nil { return "Missing binary" }
+        if self.binaryPath == nil { return "Missing \(binaryName)" }
         if let lastSyncAt = self.status?.lastSyncAt {
-            return "Synced \(CrawlBarDateText.relative(lastSyncAt))"
+            return "\(binaryName) · synced \(CrawlBarDateText.relative(lastSyncAt))"
         }
-        return self.status?.summary ?? "Waiting for status"
+        return self.status?.summary ?? "\(binaryName) · waiting for status"
+    }
+}
+
+private enum CrawlBarDetailTab: String, CaseIterable, Identifiable {
+    case overview
+    case data
+    case sync
+    case settings
+
+    var id: String { self.rawValue }
+
+    var title: String {
+        switch self {
+        case .overview:
+            "Overview"
+        case .data:
+            "Data"
+        case .sync:
+            "Sync"
+        case .settings:
+            "Settings"
+        }
     }
 }
 
@@ -390,31 +412,30 @@ struct CrawlBarAppDetailView: View {
     let runAction: (String) -> Void
     let save: () -> Void
 
+    @State private var selectedTab: CrawlBarDetailTab = .overview
+
     private var manifest: CrawlAppManifest? { self.installation?.manifest ?? BuiltInCrawlApps.manifest(for: self.app.id) }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                self.header
-                self.statusSummary
-                Divider()
-                self.metrics
-                Divider()
-                self.databases
-                Divider()
-                self.syncSettings
-                Divider()
-                self.gitShareSettings
-                Divider()
-                self.paths
-                Divider()
-                self.privacy
+        VStack(alignment: .leading, spacing: 12) {
+            self.header
+            Picker("Section", selection: self.$selectedTab) {
+                ForEach(CrawlBarDetailTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
             }
-            .frame(maxWidth: 430, alignment: .leading)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 2)
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    self.selectedContent
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 2)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: 522, height: 548, alignment: .topLeading)
     }
 
     private var header: some View {
@@ -423,7 +444,7 @@ struct CrawlBarAppDetailView: View {
                 .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
-                    Text(self.manifest?.displayName ?? self.app.id.rawValue)
+                    Text(CrawlBarCrawlerTitle.text(for: self.app.id, manifest: self.manifest))
                         .font(.title3.weight(.semibold))
                     CrawlBarStatusPill(state: self.effectiveState)
                 }
@@ -450,6 +471,24 @@ struct CrawlBarAppDetailView: View {
                 .help("Move down")
             }
             .controlSize(.small)
+        }
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch self.selectedTab {
+        case .overview:
+            self.statusSummary
+            self.metrics
+        case .data:
+            self.databases
+            self.metrics
+        case .sync:
+            self.syncSettings
+            self.gitShareSettings
+        case .settings:
+            self.paths
+            self.privacy
         }
     }
 

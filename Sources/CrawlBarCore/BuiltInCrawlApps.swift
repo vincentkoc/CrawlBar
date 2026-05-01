@@ -19,10 +19,13 @@ public enum BuiltInCrawlApps {
 
     public static let gitcrawl = CrawlAppManifest(
         id: Self.gitcrawlID,
-        displayName: "Git Crawl",
+        displayName: "GitHub",
         description: "Local GitHub issue and pull request archive",
         binary: .init(name: "gitcrawl"),
-        branding: .init(symbolName: "point.3.connected.trianglepath.dotted", accentColor: "#2F81F7"),
+        branding: .init(
+            symbolName: "point.3.connected.trianglepath.dotted",
+            accentColor: "#24292F",
+            bundleIdentifier: "com.github.GitHubClient"),
         paths: .init(
             defaultConfig: "~/.config/gitcrawl/config.toml",
             configEnv: "GITCRAWL_CONFIG",
@@ -41,7 +44,7 @@ public enum BuiltInCrawlApps {
 
     public static let slacrawl = CrawlAppManifest(
         id: Self.slacrawlID,
-        displayName: "Slack Crawl",
+        displayName: "Slack",
         description: "Local-first Slack workspace archive",
         binary: .init(name: "slacrawl"),
         branding: .init(
@@ -68,7 +71,7 @@ public enum BuiltInCrawlApps {
 
     public static let discrawl = CrawlAppManifest(
         id: Self.discrawlID,
-        displayName: "Discord Crawl",
+        displayName: "Discord",
         description: "Local Discord guild and desktop-cache archive",
         binary: .init(name: "discrawl"),
         branding: .init(
@@ -96,7 +99,7 @@ public enum BuiltInCrawlApps {
 
     public static let notcrawl = CrawlAppManifest(
         id: Self.notcrawlID,
-        displayName: "Notion Crawl",
+        displayName: "Notion",
         description: "Local Notion archive with Markdown and table exports",
         binary: .init(name: "notcrawl"),
         branding: .init(

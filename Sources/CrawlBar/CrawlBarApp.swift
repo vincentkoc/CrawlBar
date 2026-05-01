@@ -54,11 +54,12 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         let config = self.model.appConfig(for: installation.id)
         let status = self.model.statuses[installation.id]
         let state = self.effectiveState(for: installation, status: status)
-        let item = NSMenuItem(title: "\(installation.manifest.displayName)  \(self.shortStateLabel(for: state))", action: nil, keyEquivalent: "")
+        let title = CrawlBarCrawlerTitle.text(for: installation.id, manifest: installation.manifest)
+        let item = NSMenuItem(title: "\(title)  \(self.shortStateLabel(for: state))", action: nil, keyEquivalent: "")
         item.image = CrawlBarIconFactory.image(for: installation.id, manifest: installation.manifest, size: 18)
         item.toolTip = status?.summary ?? installation.manifest.description
 
-        let submenu = NSMenu(title: installation.manifest.displayName)
+        let submenu = NSMenu(title: title)
         submenu.autoenablesItems = false
         submenu.addItem(self.disabledItem(self.longStateLabel(for: state)))
         submenu.addItem(self.disabledItem(self.menuSummary(status?.summary ?? installation.manifest.description)))

@@ -6,7 +6,7 @@ enum CrawlBarBrandPalette {
     static func accent(for appID: CrawlAppID, manifest: CrawlAppManifest?) -> NSColor {
         switch appID.rawValue {
         case "gitcrawl":
-            NSColor(calibratedRed: 0.18, green: 0.43, blue: 0.82, alpha: 1)
+            NSColor(calibratedWhite: 0.08, alpha: 1)
         case "slacrawl":
             NSColor(calibratedRed: 0.25, green: 0.16, blue: 0.32, alpha: 1)
         case "discrawl":
@@ -16,6 +16,16 @@ enum CrawlBarBrandPalette {
         default:
             NSColor(hex: manifest?.branding.accentColor ?? "#6E6E73")
         }
+    }
+}
+
+enum CrawlBarCrawlerTitle {
+    static func text(for appID: CrawlAppID, manifest: CrawlAppManifest?) -> String {
+        let source = manifest?.displayName.nilIfBlank ?? appID.rawValue
+        guard let binary = manifest?.binary.name.nilIfBlank, binary != source else {
+            return source
+        }
+        return "\(source) (\(binary))"
     }
 }
 
