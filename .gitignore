@@ -2,6 +2,7 @@
 .swiftpm/
 DerivedData/
 CrawlBar.app/
+dist/
 *.xcuserdata/
 *.xcodeproj/
 *.xcworkspace/
