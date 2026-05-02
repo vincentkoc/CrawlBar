@@ -381,19 +381,6 @@ struct CrawlBarSettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CrawlBarSidebarButton(
-                title: "General",
-                subtitle: "App settings",
-                systemImage: "gearshape",
-                isSelected: self.selectedMode == .general,
-                isDimmed: false)
-            {
-                self.selectedMode = .general
-            }
-
-            Divider()
-                .padding(.vertical, 2)
-
             HStack(spacing: 8) {
                 Text("Crawlers")
                     .font(.caption.weight(.semibold))
@@ -475,6 +462,21 @@ struct CrawlBarSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            CrawlBarSidebarButton(
+                title: "General",
+                subtitle: "App settings",
+                systemImage: "gearshape",
+                isSelected: self.selectedMode == .general,
+                isDimmed: false)
+            {
+                self.selectedMode = .general
             }
         }
         .frame(width: CrawlBarSettingsLayout.sidebarWidth, height: CrawlBarSettingsLayout.contentHeight)
@@ -679,7 +681,7 @@ struct CrawlBarSidebarRow: View {
                 }
                 Text(self.subtitle)
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(self.subtitleColor)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -700,10 +702,44 @@ struct CrawlBarSidebarRow: View {
         if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if !self.app.enabled { return "Disabled" }
         if self.binaryPath == nil { return "Missing \(binaryName)" }
-        if let lastSyncAt = self.status?.lastSyncAt {
-            return "\(binaryName) · synced \(CrawlBarDateText.relative(lastSyncAt))"
+        if self.rowState == .needsAuth {
+            return self.status?.summary ?? "Needs auth"
         }
-        return self.status?.summary ?? "\(binaryName) · waiting for status"
+        if self.rowState == .error {
+            return self.status?.summary ?? "Error"
+        }
+        if let syncedAt = self.syncedAt {
+            return "\(binaryName) · synced \(CrawlBarDateText.relative(syncedAt))"
+        }
+        switch self.rowState {
+        case .syncing:
+            return "\(binaryName) · syncing"
+        case .stale:
+            return "\(binaryName) · needs refresh"
+        case .unknown:
+            return "\(binaryName) · waiting for status"
+        default:
+            return self.status?.summary ?? "\(binaryName) · waiting for status"
+        }
+    }
+
+    private var syncedAt: Date? {
+        if let lastSyncAt = self.status?.lastSyncAt {
+            return lastSyncAt
+        }
+        if let primaryModifiedAt = self.status?.databases.first(where: { $0.isPrimary })?.modifiedAt {
+            return primaryModifiedAt
+        }
+        return self.status?.databases.compactMap(\.modifiedAt).max()
+    }
+
+    private var subtitleColor: Color {
+        switch self.rowState {
+        case .needsConfig, .needsAuth, .error:
+            .red
+        default:
+            .secondary
+        }
     }
 }
 
