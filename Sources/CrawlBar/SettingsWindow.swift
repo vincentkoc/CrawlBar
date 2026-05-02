@@ -953,13 +953,22 @@ struct CrawlBarAppDetailView: View {
 
     @ViewBuilder
     private var metrics: some View {
-        if let counts = self.status?.counts, !counts.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Data")
-                    .font(.headline)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 10)], spacing: 10) {
-                    ForEach(counts) { count in
-                        CrawlBarMetricTile(label: count.label, value: "\(count.value)")
+        if !self.overviewCounts.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Data")
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                    Text(self.overviewDataScope)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                VStack(spacing: 0) {
+                    ForEach(self.overviewCounts) { count in
+                        CrawlBarMetricRow(label: count.label, value: "\(count.value)")
+                        if count.id != self.overviewCounts.last?.id {
+                            Divider()
+                        }
                     }
                 }
             }
@@ -1118,15 +1127,15 @@ struct CrawlBarAppDetailView: View {
 
     private var databaseSummary: String {
         guard let status else { return "Unknown" }
-        if let primaryDatabase = self.primaryDatabase ?? status.databases.first {
-            let size = primaryDatabase.bytes ?? status.databaseBytes
-            return [
-                primaryDatabase.label,
-                size.map { ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64($0)) },
-            ].compactMap { $0?.nilIfBlank }.joined(separator: " · ")
+        if self.app.id == BuiltInCrawlApps.gitcrawlID {
+            return self.summaryText(label: "GitHub archives", bytes: self.totalDatabaseBytes)
         }
         if status.databases.count > 1 {
-            return "\(status.databases.count) databases"
+            return self.summaryText(label: "\(status.databases.count) databases", bytes: self.totalDatabaseBytes)
+        }
+        if let primaryDatabase = self.primaryDatabase ?? status.databases.first {
+            let size = primaryDatabase.bytes ?? status.databaseBytes
+            return self.summaryText(label: primaryDatabase.label, bytes: size)
         }
         return status.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown"
     }
@@ -1153,6 +1162,55 @@ struct CrawlBarAppDetailView: View {
 
     private var primaryDatabase: CrawlDatabaseResource? {
         self.status?.databases.first(where: { $0.isPrimary })
+    }
+
+    private var totalDatabaseBytes: Int? {
+        guard let status else { return nil }
+        let total = status.databases.compactMap(\.bytes).reduce(0, +)
+        if total > 0 { return total }
+        return status.databaseBytes
+    }
+
+    private var overviewCounts: [CrawlCount] {
+        if let primaryCounts = self.primaryDatabase?.counts, !primaryCounts.isEmpty {
+            return primaryCounts
+        }
+        let databaseCounts = self.totalCountsAcrossDatabases()
+        if !databaseCounts.isEmpty {
+            return databaseCounts
+        }
+        return self.status?.counts ?? []
+    }
+
+    private var overviewDataScope: String {
+        if self.primaryDatabase?.counts.isEmpty == false {
+            return "Active database"
+        }
+        if let count = self.status?.databases.count, count > 1, !self.totalCountsAcrossDatabases().isEmpty {
+            return "Total across \(count) databases"
+        }
+        return "Connected database"
+    }
+
+    private func totalCountsAcrossDatabases() -> [CrawlCount] {
+        let counts = self.status?.databases.flatMap(\.counts) ?? []
+        guard !counts.isEmpty else { return [] }
+        var labels: [String: String] = [:]
+        var values: [String: Int] = [:]
+        for count in counts {
+            labels[count.id] = labels[count.id] ?? count.label
+            values[count.id, default: 0] += count.value
+        }
+        return values.keys.sorted().map { id in
+            CrawlCount(id: id, label: labels[id] ?? id, value: values[id] ?? 0)
+        }
+    }
+
+    private func summaryText(label: String, bytes: Int?) -> String {
+        [
+            label,
+            bytes.map { ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64($0)) },
+        ].compactMap { $0?.nilIfBlank }.joined(separator: " · ")
     }
 
     private var isComingSoon: Bool {
@@ -1366,14 +1424,14 @@ struct CrawlBarFact: View {
     }
 }
 
-struct CrawlBarMetricTile: View {
+struct CrawlBarMetricRow: View {
     let label: String
     let value: String
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(self.label)
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 8)
@@ -1381,6 +1439,7 @@ struct CrawlBarMetricTile: View {
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
         }
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
