@@ -353,7 +353,7 @@ private enum CrawlBarSettingsMode: String, CaseIterable, Identifiable {
 private enum CrawlBarSettingsLayout {
     static let windowWidth: CGFloat = 820
     static let windowHeight: CGFloat = 580
-    static let contentHeight: CGFloat = 508
+    static let contentHeight: CGFloat = 548
     static let sidebarWidth: CGFloat = 246
     static let detailWidth: CGFloat = 522
 }
@@ -363,33 +363,13 @@ struct CrawlBarSettingsView: View {
     @State private var selectedMode: CrawlBarSettingsMode = .crawlers
 
     var body: some View {
-        VStack(spacing: 12) {
-            Picker("Settings", selection: self.$selectedMode) {
-                ForEach(CrawlBarSettingsMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 210)
-
-            switch self.selectedMode {
-            case .crawlers:
-                HStack(alignment: .top, spacing: 16) {
-                    self.sidebar
-                    self.detail
-                        .frame(
-                            width: CrawlBarSettingsLayout.detailWidth,
-                            height: CrawlBarSettingsLayout.contentHeight,
-                            alignment: .topLeading)
-                }
-            case .general:
-                CrawlBarGeneralSettingsView(model: self.model)
-                    .frame(
-                        width: CrawlBarSettingsLayout.sidebarWidth + 16 + CrawlBarSettingsLayout.detailWidth,
-                        height: CrawlBarSettingsLayout.contentHeight,
-                        alignment: .topLeading)
-            }
+        HStack(alignment: .top, spacing: 16) {
+            self.sidebar
+            self.detail
+                .frame(
+                    width: CrawlBarSettingsLayout.detailWidth,
+                    height: CrawlBarSettingsLayout.contentHeight,
+                    alignment: .topLeading)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -401,9 +381,24 @@ struct CrawlBarSettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
+            CrawlBarSidebarButton(
+                title: "General",
+                subtitle: "App settings",
+                systemImage: "gearshape",
+                isSelected: self.selectedMode == .general,
+                isDimmed: false)
+            {
+                self.selectedMode = .general
+            }
+
+            Divider()
+                .padding(.vertical, 2)
+
             HStack(spacing: 8) {
                 Text("Crawlers")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer()
                 Button {
                     self.model.refreshAll()
@@ -420,8 +415,9 @@ struct CrawlBarSettingsView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .help("Open logs")
+                    .help("Open logs")
             }
+            .padding(.horizontal, 4)
 
             ScrollView {
                 VStack(spacing: 0) {
@@ -435,12 +431,15 @@ struct CrawlBarSettingsView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(
-                                    self.model.selectedAppID == app.id
+                                    self.selectedMode == .crawlers && self.model.selectedAppID == app.id
                                         ? Color(nsColor: .selectedContentBackgroundColor)
                                         : Color.clear)
                                 .padding(.horizontal, 4))
                         .contentShape(Rectangle())
-                        .onTapGesture { self.model.selectedAppID = app.id }
+                        .onTapGesture {
+                            self.selectedMode = .crawlers
+                            self.model.selectedAppID = app.id
+                        }
                     }
                 }
                 .padding(.vertical, 4)
@@ -483,33 +482,38 @@ struct CrawlBarSettingsView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let selectedID = self.model.selectedAppID,
-           self.model.apps.contains(where: { $0.id == selectedID })
-        {
-            CrawlBarAppDetailView(
-                app: self.binding(for: selectedID),
-                globalRefreshFrequency: self.model.refreshFrequency,
-                installation: self.model.installations[selectedID],
-                status: self.model.statuses[selectedID],
-                isRefreshing: self.model.isRefreshing,
-                runningAction: self.model.runningActions[selectedID],
-                actionMessage: self.model.actionMessages[selectedID],
-                moveUp: { self.model.moveUp(selectedID) },
-                moveDown: { self.model.moveDown(selectedID) },
-                refreshStatus: { self.model.refreshAll() },
-                runAction: { action in self.model.runAction(action, appID: selectedID) },
-                installApp: { self.model.installApp(selectedID) },
-                backupDatabases: { self.model.backupDatabases(selectedID) },
-                openDataFolder: { self.model.openDataFolder(selectedID) },
-                save: { self.model.save() })
-        } else {
-            VStack(spacing: 10) {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
-                Text("Select a crawler")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+        switch self.selectedMode {
+        case .general:
+            CrawlBarGeneralSettingsView(model: self.model)
+        case .crawlers:
+            if let selectedID = self.model.selectedAppID,
+               self.model.apps.contains(where: { $0.id == selectedID })
+            {
+                CrawlBarAppDetailView(
+                    app: self.binding(for: selectedID),
+                    globalRefreshFrequency: self.model.refreshFrequency,
+                    installation: self.model.installations[selectedID],
+                    status: self.model.statuses[selectedID],
+                    isRefreshing: self.model.isRefreshing,
+                    runningAction: self.model.runningActions[selectedID],
+                    actionMessage: self.model.actionMessages[selectedID],
+                    moveUp: { self.model.moveUp(selectedID) },
+                    moveDown: { self.model.moveDown(selectedID) },
+                    refreshStatus: { self.model.refreshAll() },
+                    runAction: { action in self.model.runAction(action, appID: selectedID) },
+                    installApp: { self.model.installApp(selectedID) },
+                    backupDatabases: { self.model.backupDatabases(selectedID) },
+                    openDataFolder: { self.model.openDataFolder(selectedID) },
+                    save: { self.model.save() })
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("Select a crawler")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -524,6 +528,44 @@ struct CrawlBarSettingsView: View {
                 self.model.apps[index] = $0
                 self.model.save()
             })
+    }
+}
+
+private struct CrawlBarSidebarButton: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let isSelected: Bool
+    let isDimmed: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: self.action) {
+            HStack(spacing: 11) {
+                Image(systemName: self.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(self.isSelected ? .white : .secondary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(self.title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(self.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear))
+            .opacity(self.isDimmed ? 0.58 : 1)
+        }
+        .buttonStyle(.plain)
     }
 }
 
