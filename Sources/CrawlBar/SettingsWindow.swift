@@ -381,24 +381,19 @@ struct CrawlBarSettingsView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(self.model.apps) { app in
-                            CrawlBarSidebarRow(
-                                app: app,
-                                manifest: self.model.installations[app.id]?.manifest,
-                                status: self.model.statuses[app.id],
-                                binaryPath: self.model.installations[app.id]?.binaryPath)
-                            .padding(.horizontal, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(
-                                        self.selectedMode == .crawlers && self.model.selectedAppID == app.id
-                                            ? Color(nsColor: .selectedContentBackgroundColor)
-                                            : Color.clear)
-                                    .padding(.horizontal, 4))
-                            .contentShape(Rectangle())
-                            .onTapGesture {
+                            Button {
                                 self.selectedMode = .crawlers
                                 self.model.selectedAppID = app.id
+                            } label: {
+                                CrawlBarSidebarRow(
+                                    app: app,
+                                    manifest: self.model.installations[app.id]?.manifest,
+                                    status: self.model.statuses[app.id],
+                                    binaryPath: self.model.installations[app.id]?.binaryPath)
+                                .padding(.horizontal, 8)
                             }
+                            .buttonStyle(CrawlBarSidebarSelectionStyle(isSelected: self.selectedMode == .crawlers && self.model.selectedAppID == app.id))
+                            .accessibilityLabel(CrawlBarCrawlerTitle.text(for: app.id, manifest: self.model.installations[app.id]?.manifest))
                         }
                     }
                     .padding(.vertical, 4)
@@ -515,31 +510,45 @@ private struct CrawlBarSidebarButton: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 11) {
-            Image(systemName: self.systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(self.isSelected ? .white : .secondary)
-                .frame(width: 32, height: 32)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(self.title)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(self.subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+        Button(action: self.action) {
+            HStack(spacing: 11) {
+                Image(systemName: self.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(self.isSelected ? .white : .secondary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(self.title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(self.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear))
+        .buttonStyle(CrawlBarSidebarSelectionStyle(isSelected: self.isSelected))
         .opacity(self.isDimmed ? 0.58 : 1)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: self.action)
+        .accessibilityLabel(self.title)
+    }
+}
+
+private struct CrawlBarSidebarSelectionStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+                    .padding(.horizontal, 4))
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.78 : 1)
     }
 }
 
