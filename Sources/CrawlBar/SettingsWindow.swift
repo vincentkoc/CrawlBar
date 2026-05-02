@@ -710,17 +710,17 @@ struct CrawlBarSidebarRow: View {
             return self.status?.summary ?? "Error"
         }
         if let syncedAt = self.syncedAt {
-            return "\(binaryName) · synced \(CrawlBarDateText.relative(syncedAt))"
+            return "Synced \(CrawlBarDateText.relative(syncedAt))"
         }
         switch self.rowState {
         case .syncing:
-            return "\(binaryName) · syncing"
+            return "Syncing"
         case .stale:
-            return "\(binaryName) · needs refresh"
+            return "Needs refresh"
         case .unknown:
-            return "\(binaryName) · waiting for status"
+            return "Waiting for status"
         default:
-            return self.status?.summary ?? "\(binaryName) · waiting for status"
+            return "Waiting for status"
         }
     }
 
@@ -898,7 +898,7 @@ struct CrawlBarAppDetailView: View {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
                 GridRow {
                     CrawlBarFact(label: "Status", value: self.status?.summary ?? self.statusFallback)
-                    CrawlBarFact(label: "Last Sync", value: self.status?.lastSyncAt.map(CrawlBarDateText.relative) ?? "Never")
+                    CrawlBarFact(label: "Last Sync", value: self.lastSyncSummary)
                 }
                 GridRow {
                     CrawlBarFact(
@@ -1118,9 +1118,15 @@ struct CrawlBarAppDetailView: View {
 
     private var databaseSummary: String {
         guard let status else { return "Unknown" }
-        if !status.databases.isEmpty {
-            let noun = status.databases.count == 1 ? "resource" : "resources"
-            return "\(status.databases.count) \(noun)"
+        if let primaryDatabase = self.primaryDatabase ?? status.databases.first {
+            let size = primaryDatabase.bytes ?? status.databaseBytes
+            return [
+                primaryDatabase.label,
+                size.map { ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64($0)) },
+            ].compactMap { $0?.nilIfBlank }.joined(separator: " · ")
+        }
+        if status.databases.count > 1 {
+            return "\(status.databases.count) databases"
         }
         return status.databasePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Unknown"
     }
@@ -1128,6 +1134,25 @@ struct CrawlBarAppDetailView: View {
     private var binarySummary: String {
         if self.isComingSoon { return "Coming soon" }
         return self.installation?.binaryPath == nil ? "Missing" : "Found"
+    }
+
+    private var lastSyncSummary: String {
+        guard let date = self.lastSyncDate else { return "Never" }
+        return "Synced \(CrawlBarDateText.relative(date))"
+    }
+
+    private var lastSyncDate: Date? {
+        if let lastSyncAt = self.status?.lastSyncAt {
+            return lastSyncAt
+        }
+        if let modifiedAt = self.primaryDatabase?.modifiedAt {
+            return modifiedAt
+        }
+        return self.status?.databases.compactMap(\.modifiedAt).max()
+    }
+
+    private var primaryDatabase: CrawlDatabaseResource? {
+        self.status?.databases.first(where: { $0.isPrimary })
     }
 
     private var isComingSoon: Bool {
