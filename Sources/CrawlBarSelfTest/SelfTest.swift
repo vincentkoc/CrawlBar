@@ -96,6 +96,7 @@ enum CrawlBarSelfTest {
 
         let status = CrawlStatusMapper().status(from: result, manifest: BuiltInCrawlApps.discrawl)
         try Self.expect(status.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)), "discrawl messages map")
+        try Self.expect(status.lastSyncAt != nil, "whole-second last sync dates map")
         try Self.expect(status.databasePath == "/tmp/discrawl.db", "database path maps")
         try Self.expect(status.databases.first?.label == "Discord archive", "database inventory maps")
         try Self.expect(status.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)) == true, "database inventory carries counts")
@@ -144,6 +145,7 @@ enum CrawlBarSelfTest {
         try Self.expect(crawlKitStatus.databaseBytes == 36397056, "crawlkit database bytes map")
         try Self.expect(crawlKitStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)), "crawlkit count array maps")
         try Self.expect(crawlKitStatus.databases.first?.id == "primary", "crawlkit databases map")
+        try Self.expect(crawlKitStatus.databases.first?.modifiedAt != nil, "crawlkit database modified date maps")
         try Self.expect(crawlKitStatus.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)) == true, "crawlkit database counts map")
     }
 

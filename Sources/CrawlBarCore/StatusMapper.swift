@@ -340,7 +340,7 @@ public struct CrawlStatusMapper: Sendable {
             return Date(timeIntervalSince1970: seconds)
         }
         guard let string = value as? String, let trimmed = string.nilIfBlank else { return nil }
-        if let date = ISO8601DateFormatter.crawlBarFormatter().date(from: trimmed) {
+        if let date = ISO8601DateFormatter.crawlBarDate(from: trimmed) {
             return date
         }
         if let seconds = Double(trimmed) {

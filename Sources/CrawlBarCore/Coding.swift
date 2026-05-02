@@ -15,7 +15,7 @@ public enum CrawlCoding {
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             if let string = try? container.decode(String.self) {
-                if let date = ISO8601DateFormatter.crawlBarFormatter().date(from: string) {
+                if let date = ISO8601DateFormatter.crawlBarDate(from: string) {
                     return date
                 }
                 if let seconds = Double(string) {
@@ -37,6 +37,17 @@ extension ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
+    }
+
+    static func crawlBarDate(from string: String) -> Date? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fractionalFormatter = ISO8601DateFormatter.crawlBarFormatter()
+        if let date = fractionalFormatter.date(from: trimmed) {
+            return date
+        }
+        let wholeSecondFormatter = ISO8601DateFormatter()
+        wholeSecondFormatter.formatOptions = [.withInternetDateTime]
+        return wholeSecondFormatter.date(from: trimmed)
     }
 }
 

@@ -720,7 +720,7 @@ struct CrawlBarSidebarRow: View {
         case .unknown:
             return "Waiting for status"
         default:
-            return "Waiting for status"
+            return self.status == nil ? "Waiting for status" : "Status current"
         }
     }
 

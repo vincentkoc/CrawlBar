@@ -128,6 +128,6 @@ public enum GitcrawlStatusSnapshot {
 
     private static func date(_ value: Any?) -> Date? {
         guard let string = value as? String, let trimmed = string.nilIfBlank else { return nil }
-        return ISO8601DateFormatter.crawlBarFormatter().date(from: trimmed)
+        return ISO8601DateFormatter.crawlBarDate(from: trimmed)
     }
 }
