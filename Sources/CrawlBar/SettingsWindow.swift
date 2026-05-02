@@ -64,12 +64,15 @@ final class CrawlBarSettingsModel: ObservableObject {
     private var manifestDirectories: [String] = ["~/.crawlbar/apps"]
     private let store = CrawlBarConfigStore()
     private let registry = CrawlAppRegistry()
-    private let runner = CrawlCommandRunner()
-    private let mapper = CrawlStatusMapper()
+    private let runner: CrawlCommandRunner
+    private let statusService: CrawlStatusService
     private let installer = CrawlInstaller()
     private let logStore = CrawlActionLogStore()
 
     init() {
+        let runner = CrawlCommandRunner()
+        self.runner = runner
+        self.statusService = CrawlStatusService(runner: runner)
         self.load()
     }
 
@@ -118,8 +121,7 @@ final class CrawlBarSettingsModel: ObservableObject {
     func refreshAll() {
         self.isRefreshing = true
         let registry = self.registry
-        let runner = self.runner
-        let mapper = self.mapper
+        let statusService = self.statusService
         Task.detached {
             let installations = (try? registry.installations(includeDisabled: true)) ?? []
             await MainActor.run {
@@ -128,7 +130,7 @@ final class CrawlBarSettingsModel: ObservableObject {
             await withTaskGroup(of: CrawlAppStatus.self) { group in
                 for installation in installations {
                     group.addTask {
-                        Self.status(for: installation, runner: runner, mapper: mapper)
+                        statusService.status(for: installation, timeoutSeconds: 5)
                     }
                 }
                 for await status in group {
@@ -148,7 +150,7 @@ final class CrawlBarSettingsModel: ObservableObject {
         self.runningActions[appID] = action
         self.actionMessages[appID] = "Running \(Self.actionTitle(action))..."
         let runner = self.runner
-        let mapper = self.mapper
+        let statusService = self.statusService
         let logStore = self.logStore
         Task.detached {
             let message: String
@@ -161,7 +163,7 @@ final class CrawlBarSettingsModel: ObservableObject {
             } catch {
                 message = error.localizedDescription
             }
-            let status = Self.status(for: installation, runner: runner, mapper: mapper)
+            let status = statusService.status(for: installation, timeoutSeconds: 5)
             await MainActor.run {
                 self.statuses[appID] = status
                 self.runningActions[appID] = nil
@@ -244,37 +246,6 @@ final class CrawlBarSettingsModel: ObservableObject {
                 self.isInstallingCLI = false
                 self.appActionMessage = message
             }
-        }
-    }
-
-    nonisolated private static func status(
-        for installation: CrawlAppInstallation,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper)
-        -> CrawlAppStatus
-    {
-        guard installation.manifest.availability == .available else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
-        }
-        guard installation.enabled else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
-        }
-        guard installation.binaryPath != nil else {
-            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
-        }
-        if let status = GitcrawlStatusSnapshot.status(for: installation) {
-            return status
-        }
-        do {
-            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 5)
-            return mapper.status(from: result, manifest: installation.manifest)
-        } catch CrawlCommandRunnerError.timedOut {
-            return CrawlAppStatus(
-                appID: installation.id,
-                state: .unknown,
-                summary: "Status check is slow; run Doctor for a full check")
-        } catch {
-            return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
         }
     }
 

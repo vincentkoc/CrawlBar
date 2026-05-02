@@ -143,6 +143,7 @@ enum CrawlBarSelfTest {
 
         let crawlKitStatus = CrawlStatusMapper().status(from: crawlKitResult, manifest: BuiltInCrawlApps.discrawl)
         try Self.expect(crawlKitStatus.summary == "5052 messages across 293 channels", "crawlkit status summary maps")
+        try Self.expect(crawlKitStatus.state == .stale, "stale freshness wins over current state")
         try Self.expect(crawlKitStatus.databaseBytes == 36397056, "crawlkit database bytes map")
         try Self.expect(crawlKitStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)), "crawlkit count array maps")
         try Self.expect(crawlKitStatus.databases.first?.id == "primary", "crawlkit databases map")

@@ -66,7 +66,9 @@ public struct CrawlStatusMapper: Sendable {
         ].compactMap { self.value($0, in: object) }
 
         let counts = self.statusCounts(in: object, fallback: flatCounts)
+        let databases = self.databaseResources(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
+            ?? self.databaseModifiedAt(databases)
         return CrawlAppStatus(
             appID: result.appID,
             state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
@@ -76,7 +78,7 @@ public struct CrawlStatusMapper: Sendable {
             databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
-            databases: self.databaseResources(in: object),
+            databases: databases,
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
@@ -92,7 +94,9 @@ public struct CrawlStatusMapper: Sendable {
         ].compactMap { self.value($0, in: object) }
 
         let counts = self.statusCounts(in: object, fallback: flatCounts)
+        let databases = self.databaseResources(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
+            ?? self.databaseModifiedAt(databases)
         return CrawlAppStatus(
             appID: result.appID,
             state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
@@ -102,7 +106,7 @@ public struct CrawlStatusMapper: Sendable {
             databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
-            databases: self.databaseResources(in: object),
+            databases: databases,
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
@@ -136,7 +140,9 @@ public struct CrawlStatusMapper: Sendable {
 
     private func genericStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
         let counts = self.statusCounts(in: object, fallback: self.counts(in: object))
+        let databases = self.databaseResources(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "updated_at", "generated_at"], in: object)
+            ?? self.databaseModifiedAt(databases)
         return CrawlAppStatus(
             appID: result.appID,
             state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
@@ -146,7 +152,7 @@ public struct CrawlStatusMapper: Sendable {
             databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
-            databases: self.databaseResources(in: object),
+            databases: databases,
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
@@ -202,6 +208,9 @@ public struct CrawlStatusMapper: Sendable {
         if let rawValue = self.stringValue(["state", "status"], in: object),
            let state = CrawlAppState(rawValue: rawValue)
         {
+            if state == .current, self.state(lastSyncAt: lastSyncAt, fallback: fallback) == .stale {
+                return .stale
+            }
             return state
         }
         return self.state(lastSyncAt: lastSyncAt, fallback: fallback)
@@ -248,6 +257,11 @@ public struct CrawlStatusMapper: Sendable {
                 modifiedAt: self.dateValue(["modified_at", "updated_at"], in: item),
                 counts: self.countArray(["counts"], in: item))
         }
+    }
+
+    private func databaseModifiedAt(_ databases: [CrawlDatabaseResource]) -> Date? {
+        databases.first(where: { $0.isPrimary })?.modifiedAt
+            ?? databases.compactMap(\.modifiedAt).max()
     }
 
     private func intValue(_ keys: [String], in object: [String: Any]) -> Int? {

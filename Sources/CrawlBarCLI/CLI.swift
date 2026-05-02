@@ -21,7 +21,7 @@ enum CrawlBarCLI {
         let options = CLIOptions(arguments.dropFirst())
         let registry = CrawlAppRegistry()
         let runner = CrawlCommandRunner()
-        let mapper = CrawlStatusMapper()
+        let statusService = CrawlStatusService(runner: runner)
         let installer = CrawlInstaller()
 
         switch command {
@@ -32,11 +32,11 @@ enum CrawlBarCLI {
         case "metadata":
             try Self.printMetadata(registry: registry, appID: options.appID, json: options.json)
         case "status":
-            try Self.printStatus(registry: registry, runner: runner, mapper: mapper, options: options)
+            try Self.printStatus(registry: registry, statusService: statusService, options: options)
         case "backup":
-            try Self.backup(registry: registry, runner: runner, mapper: mapper, json: options.json, appID: options.requiredAppID())
+            try Self.backup(registry: registry, statusService: statusService, json: options.json, appID: options.requiredAppID())
         case "folder":
-            try Self.printFolder(registry: registry, runner: runner, mapper: mapper, json: options.json, appID: options.requiredAppID())
+            try Self.printFolder(registry: registry, statusService: statusService, json: options.json, appID: options.requiredAppID())
         case "doctor", "refresh":
             try Self.runAction(command, registry: registry, runner: runner, json: options.json, appID: options.requiredAppID())
         case "install":
@@ -92,8 +92,7 @@ enum CrawlBarCLI {
 
     private static func printStatus(
         registry: CrawlAppRegistry,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper,
+        statusService: CrawlStatusService,
         options: CLIOptions)
         throws
     {
@@ -101,24 +100,7 @@ enum CrawlBarCLI {
         let installations = try registry.installations(includeDisabled: true)
             .filter { requestedID == nil || requestedID == CrawlAppID(rawValue: "all") || $0.id == requestedID }
         let statuses = installations.map { installation -> CrawlAppStatus in
-            guard installation.manifest.availability == .available else {
-                return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
-            }
-            guard installation.enabled else {
-                return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
-            }
-            guard installation.binaryPath != nil else {
-                return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
-            }
-            if let status = GitcrawlStatusSnapshot.status(for: installation) {
-                return status
-            }
-            do {
-                let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 30)
-                return mapper.status(from: result, manifest: installation.manifest)
-            } catch {
-                return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
-            }
+            statusService.status(for: installation, timeoutSeconds: 30)
         }
 
         if options.json {
@@ -183,13 +165,12 @@ enum CrawlBarCLI {
 
     private static func backup(
         registry: CrawlAppRegistry,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper,
+        statusService: CrawlStatusService,
         json: Bool,
         appID: CrawlAppID)
         throws
     {
-        let status = try Self.status(for: appID, registry: registry, runner: runner, mapper: mapper)
+        let status = try Self.status(for: appID, registry: registry, statusService: statusService)
         let backup = try CrawlDatabaseBackupStore.backup(status: status)
         if json {
             try CLIOutput.writeJSON(backup)
@@ -200,13 +181,12 @@ enum CrawlBarCLI {
 
     private static func printFolder(
         registry: CrawlAppRegistry,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper,
+        statusService: CrawlStatusService,
         json: Bool,
         appID: CrawlAppID)
         throws
     {
-        let status = try Self.status(for: appID, registry: registry, runner: runner, mapper: mapper)
+        let status = try Self.status(for: appID, registry: registry, statusService: statusService)
         guard let path = status.databases.first(where: { $0.isPrimary })?.path ?? status.databasePath else {
             throw CLIError.usage("no database folder for \(appID.rawValue)")
         }
@@ -221,27 +201,13 @@ enum CrawlBarCLI {
     private static func status(
         for appID: CrawlAppID,
         registry: CrawlAppRegistry,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper)
+        statusService: CrawlStatusService)
         throws -> CrawlAppStatus
     {
         guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
-        guard installation.manifest.availability == .available else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
-        }
-        guard installation.enabled else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
-        }
-        guard installation.binaryPath != nil else {
-            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
-        }
-        if let status = GitcrawlStatusSnapshot.status(for: installation) {
-            return status
-        }
-        let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 30)
-        return mapper.status(from: result, manifest: installation.manifest)
+        return statusService.status(for: installation, timeoutSeconds: 30)
     }
 
     private static func runConfig(_ options: CLIOptions, registry: CrawlAppRegistry) throws {

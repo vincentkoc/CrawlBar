@@ -230,8 +230,8 @@ final class CrawlMenuCommand: NSObject {
 @MainActor
 final class CrawlBarMenuModel {
     private let registry = CrawlAppRegistry()
-    private let runner = CrawlCommandRunner()
-    private let mapper = CrawlStatusMapper()
+    private let runner: CrawlCommandRunner
+    private let statusService: CrawlStatusService
     private let logStore = CrawlActionLogStore()
 
     var installations: [CrawlAppInstallation] = []
@@ -242,6 +242,9 @@ final class CrawlBarMenuModel {
     private var lastAutoSyncByAppID: [CrawlAppID: Date] = [:]
 
     init() {
+        let runner = CrawlCommandRunner()
+        self.runner = runner
+        self.statusService = CrawlStatusService(runner: runner)
         self.reloadInstallations()
     }
 
@@ -267,8 +270,7 @@ final class CrawlBarMenuModel {
     func refreshAll(onComplete: @escaping @MainActor () -> Void) {
         self.isRefreshing = true
         let registry = self.registry
-        let runner = self.runner
-        let mapper = self.mapper
+        let statusService = self.statusService
         Task.detached {
             let installations = (try? registry.installations(includeDisabled: true)) ?? []
             await MainActor.run {
@@ -278,7 +280,7 @@ final class CrawlBarMenuModel {
             await withTaskGroup(of: CrawlAppStatus.self) { group in
                 for installation in installations {
                     group.addTask {
-                        Self.status(for: installation, runner: runner, mapper: mapper)
+                        statusService.status(for: installation, timeoutSeconds: 5)
                     }
                 }
                 for await status in group {
@@ -301,7 +303,7 @@ final class CrawlBarMenuModel {
         let action = command.action
         let registry = self.registry
         let runner = self.runner
-        let mapper = self.mapper
+        let statusService = self.statusService
         let logStore = self.logStore
         Task.detached {
             let installation = try? registry.installation(for: appID)
@@ -310,7 +312,7 @@ final class CrawlBarMenuModel {
                     _ = try? logStore.save(result)
                 }
             }
-            let refreshed = installation.map { Self.status(for: $0, runner: runner, mapper: mapper) }
+            let refreshed = installation.map { statusService.status(for: $0, timeoutSeconds: 5) }
             await MainActor.run {
                 if let refreshed {
                     self.statuses[refreshed.appID] = refreshed
@@ -337,7 +339,7 @@ final class CrawlBarMenuModel {
         self.isRefreshing = true
         let configs = self.appConfigs
         let runner = self.runner
-        let mapper = self.mapper
+        let statusService = self.statusService
         let logStore = self.logStore
         Task.detached {
             let statuses = dueInstallations.map { installation -> CrawlAppStatus in
@@ -353,7 +355,7 @@ final class CrawlBarMenuModel {
                         }
                     }
                 }
-                return Self.status(for: installation, runner: runner, mapper: mapper)
+                return statusService.status(for: installation, timeoutSeconds: 5)
             }
             await MainActor.run {
                 for status in statuses {
@@ -366,36 +368,6 @@ final class CrawlBarMenuModel {
         }
     }
 
-    nonisolated private static func status(
-        for installation: CrawlAppInstallation,
-        runner: CrawlCommandRunner,
-        mapper: CrawlStatusMapper)
-        -> CrawlAppStatus
-    {
-        guard installation.manifest.availability == .available else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
-        }
-        guard installation.enabled else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
-        }
-        guard installation.binaryPath != nil else {
-            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "\(installation.manifest.binary.name) is not on PATH")
-        }
-        if let status = GitcrawlStatusSnapshot.status(for: installation) {
-            return status
-        }
-        do {
-            let result = try runner.run(installation: installation, action: "status", timeoutSeconds: 5)
-            return mapper.status(from: result, manifest: installation.manifest)
-        } catch CrawlCommandRunnerError.timedOut {
-            return CrawlAppStatus(
-                appID: installation.id,
-                state: .unknown,
-                summary: "Status check is slow; run Doctor for a full check")
-        } catch {
-            return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
-        }
-    }
 }
 
 private extension NSMenuItem {
