@@ -641,6 +641,7 @@ struct CrawlBarSidebarRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 5)
+        .opacity(self.manifest?.availability == .comingSoon ? 0.58 : 1)
     }
 
     private var rowState: CrawlAppState {
@@ -708,20 +709,26 @@ struct CrawlBarAppDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             self.header
-            Picker("Section", selection: self.$selectedTab) {
-                ForEach(CrawlBarDetailTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
+            if self.isComingSoon {
+                self.comingSoonContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, 6)
+            } else {
+                Picker("Section", selection: self.$selectedTab) {
+                    ForEach(CrawlBarDetailTab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    self.selectedContent
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        self.selectedContent
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 2)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 2)
             }
         }
         .frame(
@@ -746,11 +753,13 @@ struct CrawlBarAppDetailView: View {
             }
             Spacer()
             HStack(spacing: 6) {
-                Button(action: self.refreshStatus) {
-                    Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
+                if !self.isComingSoon {
+                    Button(action: self.refreshStatus) {
+                        Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Refresh status")
                 }
-                .buttonStyle(.borderless)
-                .help("Refresh status")
                 Button(action: self.moveUp) {
                     Image(systemName: "chevron.up")
                 }
@@ -782,6 +791,34 @@ struct CrawlBarAppDetailView: View {
             self.configuration
             self.paths
             self.privacy
+        }
+    }
+
+    private var comingSoonContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 16) {
+                CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
+                    .frame(width: 58, height: 58)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Coming soon")
+                        .font(.title3.weight(.semibold))
+                    Text("This connector is visible for planning but disabled until the CLI ships.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            CrawlBarPanel(title: "Integration") {
+                CrawlBarFact(label: "App", value: self.manifest?.displayName ?? self.app.id.rawValue)
+                CrawlBarFact(label: "CLI", value: self.manifest?.binary.name ?? self.app.id.rawValue)
+                CrawlBarFact(label: "Config", value: self.manifest?.paths.defaultConfig ?? "Not declared")
+                CrawlBarFact(label: "Data", value: self.manifest?.paths.defaultDatabase ?? "Not declared")
+            }
+            CrawlBarPanel(title: "State") {
+                CrawlBarFact(label: "Menu Bar", value: "Hidden until available")
+                CrawlBarFact(label: "Sync", value: "Disabled")
+                CrawlBarFact(label: "Install", value: "Unavailable")
+            }
         }
     }
 
@@ -989,7 +1026,7 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var effectiveState: CrawlAppState {
-        if self.manifest?.availability == .comingSoon { return .disabled }
+        if self.isComingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.installation?.binaryPath == nil { return .needsConfig }
         return self.status?.state ?? .unknown
@@ -997,7 +1034,7 @@ struct CrawlBarAppDetailView: View {
 
     private var statusFallback: String {
         switch self.effectiveState {
-        case .disabled where self.manifest?.availability == .comingSoon:
+        case .disabled where self.isComingSoon:
             "Coming soon"
         case .needsConfig:
             "\(self.manifest?.binary.name ?? self.app.id.rawValue) is not on PATH"
@@ -1018,8 +1055,12 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var binarySummary: String {
-        if self.manifest?.availability == .comingSoon { return "Coming soon" }
+        if self.isComingSoon { return "Coming soon" }
         return self.installation?.binaryPath == nil ? "Missing" : "Found"
+    }
+
+    private var isComingSoon: Bool {
+        self.manifest?.availability == .comingSoon
     }
 
     private var usesGlobalRefreshBinding: Binding<Bool> {

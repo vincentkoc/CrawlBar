@@ -144,12 +144,20 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
     public func normalized(knownIDs: [CrawlAppID] = BuiltInCrawlApps.all.map(\.id)) -> CrawlBarConfig {
         var seen: Set<CrawlAppID> = []
         var normalizedApps: [CrawlBarAppConfig] = []
-        for app in self.apps where !seen.contains(app.id) {
+        for var app in self.apps where !seen.contains(app.id) {
             seen.insert(app.id)
+            if BuiltInCrawlApps.manifest(for: app.id)?.availability == .comingSoon {
+                app.enabled = false
+                app.showInMenuBar = false
+                app.autoRefreshEnabled = false
+                app.shareEnabled = false
+                app.shareAfterRefresh = false
+            }
             normalizedApps.append(app)
         }
         for id in knownIDs where !seen.contains(id) {
-            normalizedApps.append(CrawlBarAppConfig(id: id, enabled: true))
+            let enabled = BuiltInCrawlApps.manifest(for: id)?.availability != .comingSoon
+            normalizedApps.append(CrawlBarAppConfig(id: id, enabled: enabled, showInMenuBar: enabled))
         }
         return CrawlBarConfig(
             version: Self.currentVersion,

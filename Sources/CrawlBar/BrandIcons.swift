@@ -13,6 +13,14 @@ enum CrawlBarBrandPalette {
             NSColor(calibratedRed: 0.35, green: 0.40, blue: 0.95, alpha: 1)
         case "notcrawl":
             NSColor(calibratedWhite: 0.08, alpha: 1)
+        case "gogcli":
+            NSColor(calibratedRed: 0.26, green: 0.52, blue: 0.96, alpha: 1)
+        case "wacli":
+            NSColor(calibratedRed: 0.15, green: 0.83, blue: 0.40, alpha: 1)
+        case "birdclaw":
+            NSColor(calibratedWhite: 0.02, alpha: 1)
+        case "grainclaw":
+            NSColor(calibratedRed: 0.71, green: 0.42, blue: 0.27, alpha: 1)
         default:
             NSColor(hex: manifest?.branding.accentColor ?? "#6E6E73")
         }
@@ -113,6 +121,13 @@ enum CrawlBarIconFactory {
         let radius = rect.width * 0.22
         let tile = NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: radius, yRadius: radius)
         switch appID.rawValue {
+        case "gogcli":
+            NSColor.white.setFill()
+            tile.fill()
+            NSColor(calibratedWhite: 0.82, alpha: 1).setStroke()
+            tile.lineWidth = max(1, rect.width * 0.035)
+            tile.stroke()
+            Self.drawGoogleGlyph(in: rect)
         case "notcrawl":
             NSColor.white.setFill()
             tile.fill()
@@ -120,6 +135,21 @@ enum CrawlBarIconFactory {
             tile.lineWidth = max(1, rect.width * 0.035)
             tile.stroke()
             Self.drawNotionN(in: rect)
+        case "wacli":
+            NSColor(calibratedRed: 0.15, green: 0.83, blue: 0.40, alpha: 1).setFill()
+            tile.fill()
+            Self.drawWhatsAppGlyph(in: rect)
+        case "birdclaw":
+            NSColor(calibratedWhite: 0.02, alpha: 1).setFill()
+            tile.fill()
+            Self.drawXGlyph(in: rect)
+        case "grainclaw":
+            NSColor(calibratedRed: 0.96, green: 0.90, blue: 0.80, alpha: 1).setFill()
+            tile.fill()
+            NSColor(calibratedRed: 0.55, green: 0.30, blue: 0.18, alpha: 0.25).setStroke()
+            tile.lineWidth = max(1, rect.width * 0.035)
+            tile.stroke()
+            Self.drawGranolaGlyph(in: rect)
         default:
             let accent = CrawlBarBrandPalette.accent(for: appID, manifest: manifest)
             accent.withAlphaComponent(0.16).setFill()
@@ -137,6 +167,93 @@ enum CrawlBarIconFactory {
             default:
                 Self.drawTerminalGlyph(in: rect, color: accent)
             }
+        }
+    }
+
+    private static func drawGoogleGlyph(in rect: NSRect) {
+        let center = NSPoint(x: rect.midX, y: rect.midY)
+        let radius = rect.width * 0.27
+        let width = max(2.4, rect.width * 0.105)
+        let arcs: [(NSColor, CGFloat, CGFloat)] = [
+            (NSColor(calibratedRed: 0.26, green: 0.52, blue: 0.96, alpha: 1), -38, 42),
+            (NSColor(calibratedRed: 0.98, green: 0.75, blue: 0.18, alpha: 1), -145, -38),
+            (NSColor(calibratedRed: 0.20, green: 0.66, blue: 0.33, alpha: 1), -218, -145),
+            (NSColor(calibratedRed: 0.92, green: 0.26, blue: 0.21, alpha: 1), 42, 142),
+        ]
+        for (color, start, end) in arcs {
+            color.setStroke()
+            let path = NSBezierPath()
+            path.lineWidth = width
+            path.lineCapStyle = .butt
+            path.appendArc(withCenter: center, radius: radius, startAngle: start, endAngle: end)
+            path.stroke()
+        }
+        NSColor(calibratedRed: 0.26, green: 0.52, blue: 0.96, alpha: 1).setStroke()
+        let crossbar = NSBezierPath()
+        crossbar.lineWidth = width
+        crossbar.lineCapStyle = .butt
+        crossbar.move(to: NSPoint(x: rect.midX, y: rect.midY))
+        crossbar.line(to: NSPoint(x: rect.maxX - rect.width * 0.18, y: rect.midY))
+        crossbar.stroke()
+    }
+
+    private static func drawWhatsAppGlyph(in rect: NSRect) {
+        NSColor.white.setFill()
+        let bubbleRect = rect.insetBy(dx: rect.width * 0.18, dy: rect.height * 0.18)
+        let bubble = NSBezierPath(ovalIn: bubbleRect)
+        bubble.fill()
+        let tail = NSBezierPath()
+        tail.move(to: NSPoint(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.23))
+        tail.line(to: NSPoint(x: rect.minX + rect.width * 0.22, y: rect.minY + rect.height * 0.12))
+        tail.line(to: NSPoint(x: rect.minX + rect.width * 0.36, y: rect.minY + rect.height * 0.18))
+        tail.close()
+        tail.fill()
+
+        NSColor(calibratedRed: 0.15, green: 0.83, blue: 0.40, alpha: 1).setStroke()
+        let phone = NSBezierPath()
+        phone.lineWidth = max(1.9, rect.width * 0.07)
+        phone.lineCapStyle = .round
+        phone.move(to: NSPoint(x: rect.minX + rect.width * 0.37, y: rect.midY + rect.height * 0.12))
+        phone.curve(
+            to: NSPoint(x: rect.maxX - rect.width * 0.34, y: rect.midY - rect.height * 0.13),
+            controlPoint1: NSPoint(x: rect.midX - rect.width * 0.02, y: rect.midY - rect.height * 0.03),
+            controlPoint2: NSPoint(x: rect.midX + rect.width * 0.07, y: rect.midY - rect.height * 0.11))
+        phone.stroke()
+    }
+
+    private static func drawXGlyph(in rect: NSRect) {
+        NSColor.white.setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = max(2.2, rect.width * 0.095)
+        path.lineCapStyle = .butt
+        path.move(to: NSPoint(x: rect.minX + rect.width * 0.29, y: rect.maxY - rect.height * 0.24))
+        path.line(to: NSPoint(x: rect.maxX - rect.width * 0.25, y: rect.minY + rect.height * 0.24))
+        path.move(to: NSPoint(x: rect.maxX - rect.width * 0.28, y: rect.maxY - rect.height * 0.24))
+        path.line(to: NSPoint(x: rect.minX + rect.width * 0.25, y: rect.minY + rect.height * 0.24))
+        path.stroke()
+    }
+
+    private static func drawGranolaGlyph(in rect: NSRect) {
+        let color = NSColor(calibratedRed: 0.55, green: 0.30, blue: 0.18, alpha: 1)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        NSString(string: "G").draw(
+            in: rect.offsetBy(dx: 0, dy: -rect.height * 0.07),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: rect.width * 0.58, weight: .bold),
+                .foregroundColor: color,
+                .paragraphStyle: paragraph,
+            ])
+        color.withAlphaComponent(0.7).setStroke()
+        let baseY = rect.minY + rect.height * 0.24
+        for index in 0..<4 {
+            let x = rect.minX + rect.width * (0.30 + CGFloat(index) * 0.11)
+            let line = NSBezierPath()
+            line.lineWidth = max(1.2, rect.width * 0.035)
+            line.lineCapStyle = .round
+            line.move(to: NSPoint(x: x, y: baseY))
+            line.line(to: NSPoint(x: x, y: baseY + rect.height * (index.isMultiple(of: 2) ? 0.08 : 0.14)))
+            line.stroke()
         }
     }
 

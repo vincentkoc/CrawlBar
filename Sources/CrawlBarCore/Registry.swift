@@ -22,15 +22,17 @@ public struct CrawlAppRegistry: @unchecked Sendable {
     public func installations(includeDisabled: Bool = true) throws -> [CrawlAppInstallation] {
         let config = try self.loadConfig()
         return config.apps.compactMap { appConfig in
-            guard includeDisabled || appConfig.enabled else { return nil }
             guard let manifest = self.catalog.manifest(for: appConfig.id, config: config) else { return nil }
+            let isAvailable = manifest.availability == .available
+            let enabled = isAvailable && appConfig.enabled
+            guard includeDisabled || enabled else { return nil }
             let requestedBinary = appConfig.binaryPath?.nilIfBlank ?? manifest.binary.name
-            let resolvedBinary = self.resolver.resolve(requestedBinary)
+            let resolvedBinary = isAvailable ? self.resolver.resolve(requestedBinary) : nil
             return CrawlAppInstallation(
                 manifest: manifest,
                 binaryPath: resolvedBinary,
                 configPathOverride: appConfig.configPath,
-                enabled: appConfig.enabled)
+                enabled: enabled)
         }
     }
 

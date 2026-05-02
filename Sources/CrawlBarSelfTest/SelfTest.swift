@@ -24,6 +24,8 @@ enum CrawlBarSelfTest {
         let config = CrawlBarConfig(apps: []).normalized()
         try Self.expect(config.version == CrawlBarConfig.currentVersion, "config version normalizes")
         try Self.expect(config.apps.map(\.id) == BuiltInCrawlApps.all.map(\.id), "built-in apps are present")
+        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.enabled == false, "coming soon apps normalize disabled")
+        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.showInMenuBar == false, "coming soon apps stay out of menu bar")
         try Self.expect(config.manifestDirectories == ["~/.crawlbar/apps"], "manifest directory default is present")
     }
 

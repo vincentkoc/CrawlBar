@@ -179,7 +179,10 @@ public enum BuiltInCrawlApps {
         description: "WhatsApp message archive connector",
         availability: .comingSoon,
         binary: .init(name: "wacli"),
-        branding: .init(symbolName: "message.circle", accentColor: "#25D366"),
+        branding: .init(
+            symbolName: "message.circle",
+            accentColor: "#25D366",
+            bundleIdentifier: "net.whatsapp.WhatsApp"),
         paths: .init(
             defaultConfig: "~/.config/wacli/config.toml",
             configEnv: "WACLI_CONFIG",
@@ -215,7 +218,10 @@ public enum BuiltInCrawlApps {
         description: "Granola notes archive connector",
         availability: .comingSoon,
         binary: .init(name: "grainclaw"),
-        branding: .init(symbolName: "waveform.and.magnifyingglass", accentColor: "#B56B45"),
+        branding: .init(
+            symbolName: "waveform.and.magnifyingglass",
+            accentColor: "#B56B45",
+            bundleIdentifier: "com.granola.app"),
         paths: .init(
             defaultConfig: "~/.config/grainclaw/config.toml",
             configEnv: "GRAINCLAW_CONFIG",

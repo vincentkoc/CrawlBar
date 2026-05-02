@@ -234,7 +234,8 @@ final class CrawlBarMenuModel {
 
     var visibleInstallations: [CrawlAppInstallation] {
         self.installations.filter { installation in
-            self.appConfigs[installation.id]?.showInMenuBar ?? true
+            guard installation.manifest.availability == .available else { return false }
+            return self.appConfigs[installation.id]?.showInMenuBar ?? true
         }
     }
 
