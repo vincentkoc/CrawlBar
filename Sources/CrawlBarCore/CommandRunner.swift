@@ -26,7 +26,7 @@ public struct CrawlCommandRedactor: Sendable {
             (#"(?i)(Bearer\s+)[^\s"',}]+"#, "$1[REDACTED]"),
             (#"(?i)(api[_-]?key|token|secret|password|cookie|authorization)(["'\s:=]+)([^\s"',}]+)"#, "$1$2[REDACTED]"),
             (#"(?i)(xox[baprs]-)[A-Za-z0-9-]+"#, "$1[REDACTED]"),
-            (#"(?i)(discord(?:_token)?["'\s:=]+)([^\s"',}]+)"#, "$1[REDACTED]"),
+            (#"(?i)(discord[_-]?token["'\s:=]+)([^\s"',}]+)"#, "$1[REDACTED]"),
         ]
         for (pattern, template) in patterns {
             redacted = redacted.replacingOccurrences(

@@ -99,6 +99,52 @@ enum CrawlBarSelfTest {
         try Self.expect(status.databasePath == "/tmp/discrawl.db", "database path maps")
         try Self.expect(status.databases.first?.label == "Discord archive", "database inventory maps")
         try Self.expect(status.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 42)) == true, "database inventory carries counts")
+
+        let crawlKitOutput = """
+        {
+          "schema_version": "crawlkit.control.v1",
+          "app_id": "discrawl",
+          "state": "current",
+          "summary": "5052 messages across 293 channels",
+          "database_path": "/tmp/discrawl.db",
+          "database_bytes": 36397056,
+          "counts": [
+            {"id": "guilds", "label": "Guilds", "value": 56},
+            {"id": "channels", "label": "Channels", "value": 293},
+            {"id": "messages", "label": "Messages", "value": 5052}
+          ],
+          "databases": [
+            {
+              "id": "primary",
+              "label": "Discord archive",
+              "kind": "sqlite",
+              "role": "archive",
+              "path": "/tmp/discrawl.db",
+              "is_primary": true,
+              "bytes": 36397056,
+              "modified_at": "2026-04-24T07:38:30Z",
+              "counts": [
+                {"id": "messages", "label": "Messages", "value": 5052}
+              ]
+            }
+          ]
+        }
+        """
+        let crawlKitResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.discrawlID,
+            action: "status",
+            exitCode: 0,
+            stdout: crawlKitOutput,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+
+        let crawlKitStatus = CrawlStatusMapper().status(from: crawlKitResult, manifest: BuiltInCrawlApps.discrawl)
+        try Self.expect(crawlKitStatus.summary == "5052 messages across 293 channels", "crawlkit status summary maps")
+        try Self.expect(crawlKitStatus.databaseBytes == 36397056, "crawlkit database bytes map")
+        try Self.expect(crawlKitStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)), "crawlkit count array maps")
+        try Self.expect(crawlKitStatus.databases.first?.id == "primary", "crawlkit databases map")
+        try Self.expect(crawlKitStatus.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)) == true, "crawlkit database counts map")
     }
 
     private static func testDatabaseBackupCopiesFiles() throws {
@@ -128,9 +174,11 @@ enum CrawlBarSelfTest {
     }
 
     private static func testRedactorScrubsSecrets() throws {
-        let redacted = CrawlCommandRedactor().redact("token=abc123\nAuthorization: Bearer secret-token")
+        let redacted = CrawlCommandRedactor().redact("token=abc123\nAuthorization: Bearer secret-token\ndiscord_token=discord-secret\nlabel=Discord archive")
         try Self.expect(!redacted.contains("abc123"), "token value redacts")
         try Self.expect(!redacted.contains("secret-token"), "bearer value redacts")
+        try Self.expect(!redacted.contains("discord-secret"), "discord token value redacts")
+        try Self.expect(redacted.contains("Discord archive"), "discord labels are not redacted")
     }
 
     private static func expect(_ condition: Bool, _ message: String) throws {

@@ -58,28 +58,31 @@ public struct CrawlStatusMapper: Sendable {
     }
 
     private func slacrawlStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
-        let counts = [
+        let flatCounts = [
             self.count("workspaces", "Workspaces", ["workspace_count", "workspaces"]),
             self.count("channels", "Channels", ["channel_count", "channels"]),
             self.count("users", "Users", ["user_count", "users"]),
             self.count("messages", "Messages", ["message_count", "messages"]),
         ].compactMap { self.value($0, in: object) }
 
+        let counts = self.statusCounts(in: object, fallback: flatCounts)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
         return CrawlAppStatus(
             appID: result.appID,
-            state: self.state(lastSyncAt: lastSyncAt, fallback: .current),
-            summary: self.summary(from: counts, fallback: "Slack crawl status is current"),
+            state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
+            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Slack crawl status is current"),
             configPath: self.stringValue(["config_path", "config"], in: object),
             databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
+            databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
+            databases: self.databaseResources(in: object),
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
 
     private func discrawlStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
-        let counts = [
+        let flatCounts = [
             self.count("guilds", "Guilds", ["guild_count", "guilds"]),
             self.count("channels", "Channels", ["channel_count", "channels"]),
             self.count("threads", "Threads", ["thread_count", "threads"]),
@@ -88,15 +91,18 @@ public struct CrawlStatusMapper: Sendable {
             self.count("embedding_backlog", "Embedding Backlog", ["embedding_backlog"]),
         ].compactMap { self.value($0, in: object) }
 
+        let counts = self.statusCounts(in: object, fallback: flatCounts)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
         return CrawlAppStatus(
             appID: result.appID,
-            state: self.state(lastSyncAt: lastSyncAt, fallback: .current),
-            summary: self.summary(from: counts, fallback: "Discord crawl status is current"),
+            state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
+            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Discord crawl status is current"),
             configPath: self.stringValue(["config_path", "config"], in: object),
             databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
+            databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
+            databases: self.databaseResources(in: object),
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
@@ -129,16 +135,18 @@ public struct CrawlStatusMapper: Sendable {
     }
 
     private func genericStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
-        let counts = self.counts(in: object)
+        let counts = self.statusCounts(in: object, fallback: self.counts(in: object))
         let lastSyncAt = self.dateValue(["last_sync_at", "updated_at", "generated_at"], in: object)
         return CrawlAppStatus(
             appID: result.appID,
-            state: self.state(lastSyncAt: lastSyncAt, fallback: .current),
+            state: self.statusState(in: object, lastSyncAt: lastSyncAt, fallback: .current),
             summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Status is current"),
             configPath: self.stringValue(["config_path"], in: object),
             databasePath: self.stringValue(["db_path", "database_path"], in: object),
+            databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
+            databases: self.databaseResources(in: object),
             freshness: self.freshness(lastSyncAt: lastSyncAt),
             share: self.shareStatus(in: object))
     }
@@ -190,10 +198,81 @@ public struct CrawlStatusMapper: Sendable {
         return visible.isEmpty ? fallback : visible.joined(separator: ", ")
     }
 
+    private func statusState(in object: [String: Any], lastSyncAt: Date?, fallback: CrawlAppState) -> CrawlAppState {
+        if let rawValue = self.stringValue(["state", "status"], in: object),
+           let state = CrawlAppState(rawValue: rawValue)
+        {
+            return state
+        }
+        return self.state(lastSyncAt: lastSyncAt, fallback: fallback)
+    }
+
+    private func statusCounts(in object: [String: Any], fallback: [CrawlCount]) -> [CrawlCount] {
+        let declared = self.countArray(["counts"], in: object)
+        return declared.isEmpty ? fallback : declared
+    }
+
+    private func countArray(_ keys: [String], in object: [String: Any]) -> [CrawlCount] {
+        for key in keys {
+            guard let array = self.firstValue(key, in: object) as? [Any] else { continue }
+            let counts = array.compactMap { item -> CrawlCount? in
+                guard let item = item as? [String: Any],
+                      let id = self.stringValue(["id"], in: item),
+                      let value = self.intValue(["value", "count"], in: item)
+                else { return nil }
+                return CrawlCount(
+                    id: id,
+                    label: self.stringValue(["label"], in: item) ?? self.label(from: id),
+                    value: value)
+            }
+            if !counts.isEmpty { return counts }
+        }
+        return []
+    }
+
+    private func databaseResources(in object: [String: Any]) -> [CrawlDatabaseResource] {
+        guard let array = self.firstValue("databases", in: object) as? [Any] else { return [] }
+        return array.compactMap { item -> CrawlDatabaseResource? in
+            guard let item = item as? [String: Any] else { return nil }
+            let path = self.stringValue(["path"], in: item)
+            guard let id = self.stringValue(["id"], in: item) ?? path else { return nil }
+            let kindValue = self.stringValue(["kind"], in: item) ?? CrawlDatabaseKind.sqlite.rawValue
+            return CrawlDatabaseResource(
+                id: id,
+                label: self.stringValue(["label"], in: item) ?? URL(fileURLWithPath: id).lastPathComponent,
+                kind: CrawlDatabaseKind(rawValue: kindValue) ?? .sqlite,
+                role: self.stringValue(["role"], in: item),
+                path: path,
+                isPrimary: self.boolValue(["is_primary", "primary"], in: item) ?? false,
+                bytes: self.intValue(["bytes", "size_bytes"], in: item),
+                modifiedAt: self.dateValue(["modified_at", "updated_at"], in: item),
+                counts: self.countArray(["counts"], in: item))
+        }
+    }
+
     private func intValue(_ keys: [String], in object: [String: Any]) -> Int? {
         for key in keys {
             if let value = self.firstValue(key, in: object), let int = self.int(value) {
                 return int
+            }
+        }
+        return nil
+    }
+
+    private func boolValue(_ keys: [String], in object: [String: Any]) -> Bool? {
+        for key in keys {
+            guard let value = self.firstValue(key, in: object) else { continue }
+            if let bool = value as? Bool { return bool }
+            if let number = value as? NSNumber { return number.boolValue }
+            if let string = value as? String {
+                switch string.lowercased() {
+                case "true", "yes", "1":
+                    return true
+                case "false", "no", "0":
+                    return false
+                default:
+                    continue
+                }
             }
         }
         return nil
