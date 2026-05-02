@@ -9,6 +9,7 @@ enum CrawlBarSelfTest {
         try Self.testConfigStoreRoundTrips()
         try Self.testExternalManifestCatalog()
         try Self.testStatusMapperNormalizesCounts()
+        try Self.testConfigValuesReachCommandEnvironment()
         try Self.testDatabaseBackupCopiesFiles()
         try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
@@ -147,6 +148,39 @@ enum CrawlBarSelfTest {
         try Self.expect(crawlKitStatus.databases.first?.id == "primary", "crawlkit databases map")
         try Self.expect(crawlKitStatus.databases.first?.modifiedAt != nil, "crawlkit database modified date maps")
         try Self.expect(crawlKitStatus.databases.first?.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)) == true, "crawlkit database counts map")
+    }
+
+    private static func testConfigValuesReachCommandEnvironment() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-env-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let scriptURL = directory.appendingPathComponent("print-env.sh")
+        try Data("""
+        #!/bin/sh
+        printf '%s' "$CRAWLBAR_TEST_VALUE"
+        """.utf8).write(to: scriptURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let manifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "envcrawl"),
+            displayName: "Env Crawl",
+            description: "A test crawler",
+            binary: .init(name: scriptURL.path),
+            branding: .init(symbolName: "terminal", accentColor: "#123456"),
+            paths: .init(),
+            commands: ["status": []],
+            capabilities: [.status],
+            configOptions: [
+                .init(id: "test_value", label: "Test Value", envVar: "CRAWLBAR_TEST_VALUE"),
+            ])
+        let installation = CrawlAppInstallation(
+            manifest: manifest,
+            binaryPath: scriptURL.path,
+            configValues: ["test_value": "from-config"])
+        let result = try CrawlCommandRunner().run(installation: installation, action: "status", timeoutSeconds: 5)
+        try Self.expect(result.stdout == "from-config", "config values reach crawler command environment")
     }
 
     private static func testDatabaseBackupCopiesFiles() throws {

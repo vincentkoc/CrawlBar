@@ -32,6 +32,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
                 manifest: manifest,
                 binaryPath: resolvedBinary,
                 configPathOverride: appConfig.configPath,
+                configValues: appConfig.configValues,
                 enabled: enabled)
         }
     }

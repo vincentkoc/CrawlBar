@@ -112,6 +112,12 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         {
             commandEnvironment[envName] = PathExpander.expandHome(configPath)
         }
+        for option in installation.manifest.configOptions {
+            guard let envName = option.envVar?.nilIfBlank,
+                  let value = installation.configValues[option.id]?.nilIfBlank
+            else { continue }
+            commandEnvironment[envName] = value
+        }
 
         return try self.runProcess(
             appID: installation.id,
