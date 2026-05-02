@@ -21,6 +21,9 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     private let model = CrawlBarMenuModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        self.settingsWindowController.onClose = { [weak self] in
+            self?.hideFromApplicationSwitcher()
+        }
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = CrawlBarIconFactory.menuBarImage()
         statusItem.button?.imagePosition = .imageLeading
@@ -189,10 +192,20 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showSettings(_ sender: Any?) {
+        self.showInApplicationSwitcher()
         self.settingsWindowController.show()
         self.model.reloadInstallations()
         self.scheduleRefreshTimer()
         self.reloadMenu()
+    }
+
+    private func showInApplicationSwitcher() {
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
+    private func hideFromApplicationSwitcher() {
+        NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     @objc private func openLogs(_ sender: Any?) {

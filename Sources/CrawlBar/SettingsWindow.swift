@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
+    var onClose: (() -> Void)?
 
     func show() {
         if let window {
@@ -41,6 +42,7 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
     nonisolated func windowWillClose(_ notification: Notification) {
         Task { @MainActor in
             self.window = nil
+            self.onClose?()
         }
     }
 }
