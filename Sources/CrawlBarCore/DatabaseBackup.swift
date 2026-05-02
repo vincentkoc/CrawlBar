@@ -40,13 +40,16 @@ public enum CrawlDatabaseBackupStore {
     }
 
     public static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
-        let files = status.databases
+        let resources = status.databases
             .filter { $0.kind == .sqlite || $0.kind == .cache }
-            .compactMap(\.path)
-            .map { URL(fileURLWithPath: PathExpander.expandHome($0)) }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .compactMap { resource -> (resource: CrawlDatabaseResource, source: URL)? in
+                guard let path = resource.path?.nilIfBlank else { return nil }
+                let source = URL(fileURLWithPath: PathExpander.expandHome(path))
+                guard FileManager.default.fileExists(atPath: source.path) else { return nil }
+                return (resource, source)
+            }
 
-        guard !files.isEmpty else {
+        guard !resources.isEmpty else {
             throw CrawlDatabaseBackupError.noDatabases(status.appID)
         }
 
@@ -60,15 +63,54 @@ public enum CrawlDatabaseBackupStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         var copied: [String] = []
-        for source in files {
-            let destination = directory.appendingPathComponent(source.lastPathComponent)
+        var usedNames: Set<String> = []
+        let basenameCounts = Dictionary(grouping: resources, by: { $0.source.lastPathComponent })
+            .mapValues(\.count)
+        for entry in resources {
+            let destinationName = Self.destinationName(
+                for: entry.resource,
+                source: entry.source,
+                basenameCounts: basenameCounts,
+                usedNames: &usedNames)
+            let destination = directory.appendingPathComponent(destinationName)
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
             }
-            try FileManager.default.copyItem(at: source, to: destination)
+            try FileManager.default.copyItem(at: entry.source, to: destination)
             copied.append(destination.path)
         }
 
         return CrawlDatabaseBackup(appID: status.appID, directory: directory.path, files: copied)
+    }
+
+    private static func destinationName(
+        for resource: CrawlDatabaseResource,
+        source: URL,
+        basenameCounts: [String: Int],
+        usedNames: inout Set<String>)
+        -> String
+    {
+        let basename = source.lastPathComponent
+        let shouldPrefix = (basenameCounts[basename] ?? 0) > 1
+        let prefix = Self.safeFilename(resource.label.nilIfBlank ?? resource.id)
+        var candidate = shouldPrefix ? "\(prefix)-\(basename)" : basename
+        var suffix = 2
+        while usedNames.contains(candidate) {
+            candidate = "\(prefix)-\(suffix)-\(basename)"
+            suffix += 1
+        }
+        usedNames.insert(candidate)
+        return candidate
+    }
+
+    private static func safeFilename(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let scalars = value.unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "-"
+        }
+        let collapsed = String(scalars)
+            .split(separator: "-", omittingEmptySubsequences: true)
+            .joined(separator: "-")
+        return collapsed.nilIfBlank ?? "database"
     }
 }
