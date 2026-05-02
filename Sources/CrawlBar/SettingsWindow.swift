@@ -402,33 +402,50 @@ struct CrawlBarSettingsView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                    .help("Open logs")
+                .help("Open logs")
             }
             .padding(.horizontal, 4)
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(self.model.apps) { app in
-                        CrawlBarSidebarRow(
-                            app: app,
-                            manifest: self.model.installations[app.id]?.manifest,
-                            status: self.model.statuses[app.id],
-                            binaryPath: self.model.installations[app.id]?.binaryPath)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(
-                                    self.selectedMode == .crawlers && self.model.selectedAppID == app.id
-                                        ? Color(nsColor: .selectedContentBackgroundColor)
-                                        : Color.clear)
-                                .padding(.horizontal, 4))
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            self.selectedMode = .crawlers
-                            self.model.selectedAppID = app.id
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(self.model.apps) { app in
+                            CrawlBarSidebarRow(
+                                app: app,
+                                manifest: self.model.installations[app.id]?.manifest,
+                                status: self.model.statuses[app.id],
+                                binaryPath: self.model.installations[app.id]?.binaryPath)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(
+                                        self.selectedMode == .crawlers && self.model.selectedAppID == app.id
+                                            ? Color(nsColor: .selectedContentBackgroundColor)
+                                            : Color.clear)
+                                    .padding(.horizontal, 4))
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                self.selectedMode = .crawlers
+                                self.model.selectedAppID = app.id
+                            }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
+
+                Divider()
+                    .padding(.leading, 8)
+
+                CrawlBarSidebarButton(
+                    title: "General",
+                    subtitle: "App settings",
+                    systemImage: "gearshape",
+                    isSelected: self.selectedMode == .general,
+                    isDimmed: false)
+                {
+                    self.selectedMode = .general
+                }
+                .padding(.horizontal, 8)
                 .padding(.vertical, 4)
             }
             .background(
@@ -462,21 +479,6 @@ struct CrawlBarSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            CrawlBarSidebarButton(
-                title: "General",
-                subtitle: "App settings",
-                systemImage: "gearshape",
-                isSelected: self.selectedMode == .general,
-                isDimmed: false)
-            {
-                self.selectedMode = .general
             }
         }
         .frame(width: CrawlBarSettingsLayout.sidebarWidth, height: CrawlBarSettingsLayout.contentHeight)
@@ -542,32 +544,31 @@ private struct CrawlBarSidebarButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: self.action) {
-            HStack(spacing: 11) {
-                Image(systemName: self.systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(self.isSelected ? .white : .secondary)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(self.title)
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(self.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
+        HStack(spacing: 11) {
+            Image(systemName: self.systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(self.isSelected ? .white : .secondary)
+                .frame(width: 32, height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(self.title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(self.subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear))
-            .opacity(self.isDimmed ? 0.58 : 1)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear))
+        .opacity(self.isDimmed ? 0.58 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: self.action)
     }
 }
 
@@ -875,31 +876,21 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var comingSoonContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 16) {
-                CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
-                    .frame(width: 58, height: 58)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Coming soon")
-                        .font(.title3.weight(.semibold))
-                    Text("This connector is visible for planning but disabled until the CLI ships.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            CrawlBarPanel(title: "Integration") {
-                CrawlBarFact(label: "App", value: self.manifest?.displayName ?? self.app.id.rawValue)
-                CrawlBarFact(label: "CLI", value: self.manifest?.binary.name ?? self.app.id.rawValue)
-                CrawlBarFact(label: "Config", value: self.manifest?.paths.defaultConfig ?? "Not declared")
-                CrawlBarFact(label: "Data", value: self.manifest?.paths.defaultDatabase ?? "Not declared")
-            }
-            CrawlBarPanel(title: "State") {
-                CrawlBarFact(label: "Menu Bar", value: "Hidden until available")
-                CrawlBarFact(label: "Sync", value: "Disabled")
-                CrawlBarFact(label: "Install", value: "Unavailable")
-            }
+        VStack(spacing: 12) {
+            Spacer(minLength: 44)
+            CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
+                .frame(width: 72, height: 72)
+            Text("\(self.manifest?.displayName ?? "This crawler") has not shipped yet")
+                .font(.title3.weight(.semibold))
+                .multilineTextAlignment(.center)
+            Text("CrawlBar will let you know when it is ready.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private var statusSummary: some View {
