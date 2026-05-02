@@ -20,3 +20,10 @@ jobs:
           swift run crawlbarctl apps --json
           swift run crawlbarctl metadata --json
           swift run crawlbarctl config validate
+      - name: Package app
+        run: Scripts/package_app.sh
+      - name: Packaged CLI smoke
+        run: |
+          dist/CrawlBar.app/Contents/Helpers/crawlbar apps --json
+          dist/CrawlBar.app/Contents/Helpers/crawlbar metadata --json
+          dist/CrawlBar.app/Contents/Helpers/crawlbar config validate
