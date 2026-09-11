@@ -76,7 +76,7 @@ extension CrawlBarSelfTest {
         let first = try coordinator.run(
             installation: fixture.installation, config: fixture.app, configValues: fixture.values, action: "pull", now: now,
             allowShare: {
-                (try? fixture.registry.loadConfig().apps.first { $0.id == fixture.app.id }) == fixture.app && permit()
+                fixture.registry.matchesPersistedRawAppConfig(fixture.app) && permit()
             })
         { action in
             try fixture.runner.run(
@@ -94,7 +94,7 @@ extension CrawlBarSelfTest {
             installation: fixture.installation, config: fixture.app, configValues: retryValues,
             action: "pull", now: now.addingTimeInterval(900), scheduledInterval: 900,
             allowShare: {
-                (try? fixture.registry.loadConfig().apps.first { $0.id == fixture.app.id }) == fixture.app && retryPermit()
+                fixture.registry.matchesPersistedRawAppConfig(fixture.app) && retryPermit()
             })
         { action in
             try fixture.runner.run(

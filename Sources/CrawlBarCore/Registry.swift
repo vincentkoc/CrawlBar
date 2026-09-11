@@ -126,6 +126,14 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         return copy
     }
 
+    package func matchesPersistedRawAppConfig(_ captured: CrawlBarAppConfig) -> Bool {
+        guard let config = try? self.configStore.loadUncached(),
+              let current = config.apps.first(where: { $0.id == captured.id })
+        else { return false }
+        // The scheduler captures raw config; native values have a separate publication guard.
+        return current == captured
+    }
+
     package func matchesPersistedAppConfig(_ captured: CrawlBarAppConfig, manifest: CrawlAppManifest) -> Bool {
         guard let config = try? self.configStore.loadUncached(),
               let current = config.apps.first(where: { $0.id == captured.id })

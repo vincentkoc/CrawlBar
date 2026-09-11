@@ -10,6 +10,7 @@ enum CrawlBarSelfTest {
         try Self.testActionAttemptCadenceAndShareRetry()
         try Self.testActionExclusionAndConsent()
         try Self.testActionSelectedArgumentsAndChangedConfig()
+        try Self.testScheduledPublicationConsent()
         try Self.testExistingCredentialFixOnFailureLogs()
         if CommandLine.arguments.contains("--native-safety") {
             print("crawlbar synthetic native safety selftest ok")

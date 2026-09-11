@@ -177,7 +177,7 @@ final class CrawlBarMenuModel: NSObject {
                             action: config.preferredRefreshAction ?? "refresh",
                             scheduledInterval: (config.refreshFrequency ?? refreshFrequency).seconds,
                             allowShare: {
-                                (try? registry.loadConfig().apps.first { $0.id == installation.id }) == config
+                                registry.matchesPersistedRawAppConfig(config)
                                     && nativePublicationGuard()
                             },
                             execute: { action in

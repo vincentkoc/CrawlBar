@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- Recheck scheduled publication consent without the main-config cache, including pending retries, while preserving unchanged native-only settings.
 - Map iMessage archive paths without exposing the Messages source database to backup selection.
 - Keep status check timestamps separate from import/sync freshness and recognize missing external archives as requiring setup.
 - Preserve recursive configuration substitution while bounding cycles and expansion.
